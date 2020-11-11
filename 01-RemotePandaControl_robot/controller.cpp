@@ -91,7 +91,7 @@ int main() {
 	joint_task->_use_velocity_saturation_flag = false;
 
 	VectorXd q_init(dof);
-	q_init << 0, 30, 0, -90, 0, 120, 0;
+	q_init << 0, -30, 0, -130, 0, 100, 0;
 	q_init *= M_PI/180.0;
 	joint_task->_desired_position = q_init;
 
@@ -106,7 +106,7 @@ int main() {
 	VectorXd posori_task_torques = VectorXd::Zero(dof);
 	posori_task->_use_interpolation_flag = true;
 
-	posori_task->_otg->setMaxLinearVelocity(0.20);
+	posori_task->_otg->setMaxLinearVelocity(0.30);
 	posori_task->_otg->setMaxLinearAcceleration(10.0);
 	posori_task->_otg->setMaxLinearJerk(50.0);
 
