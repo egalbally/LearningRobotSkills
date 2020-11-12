@@ -90,6 +90,10 @@ int main() {
 	joint_task->_use_interpolation_flag = true;
 	joint_task->_use_velocity_saturation_flag = false;
 
+	joint_task->_kp = 200.0;
+	joint_task->_kv = 25.0;
+	joint_task->_ki = 50.0;
+
 	VectorXd q_init(dof);
 	q_init << 0, -30, 0, -130, 0, 100, 0;
 	q_init *= M_PI/180.0;
@@ -107,7 +111,7 @@ int main() {
 	posori_task->_use_interpolation_flag = true;
 
 	posori_task->_otg->setMaxLinearVelocity(0.30);
-	posori_task->_otg->setMaxLinearAcceleration(10.0);
+	posori_task->_otg->setMaxLinearAcceleration(2.0);
 	posori_task->_otg->setMaxLinearJerk(50.0);
 
 	posori_task->_kp_pos = 200.0;
@@ -210,6 +214,10 @@ int main() {
 				// Reinitialize controllers
 				posori_task->reInitializeTask();
 				joint_task->reInitializeTask();
+
+				joint_task->_kp = 50.0;
+				joint_task->_kv = 13.0;
+				joint_task->_ki = 0.0;
 
 				state = CONTROL;
 			}
