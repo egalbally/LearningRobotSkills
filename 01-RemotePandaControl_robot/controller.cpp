@@ -54,11 +54,11 @@ int main() {
 
 	if(!flag_simulation)
 	{
-		ROBOT_COMMAND_TORQUES_KEY = "sai2::FrankaPanda::Bonnie::actuators::fgc";
-		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Bonnie::sensors::q";
-		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::Bonnie::sensors::dq";
-		MASSMATRIX_KEY = "sai2::FrankaPanda::Bonnie::sensors::model::massmatrix";
-		CORIOLIS_KEY = "sai2::FrankaPanda::Bonnie::sensors::model::coriolis";
+		ROBOT_COMMAND_TORQUES_KEY = "sai2::FrankaPanda::actuators::fgc";
+		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::sensors::q";
+		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::sensors::dq";
+		MASSMATRIX_KEY = "sai2::FrankaPanda::sensors::model::massmatrix";
+		CORIOLIS_KEY = "sai2::FrankaPanda::sensors::model::coriolis";
 	}
 
 	// start redis client local
