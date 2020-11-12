@@ -110,15 +110,15 @@ int main() {
 	VectorXd posori_task_torques = VectorXd::Zero(dof);
 	posori_task->_use_interpolation_flag = true;
 
-	posori_task->_otg->setMaxLinearVelocity(0.30);
-	posori_task->_otg->setMaxLinearAcceleration(2.0);
-	posori_task->_otg->setMaxLinearJerk(50.0);
+	posori_task->_otg->setMaxLinearVelocity(0.20);
+	posori_task->_otg->setMaxLinearAcceleration(1.0);
+	posori_task->_otg->setMaxLinearJerk(5.0);
 
 	posori_task->_kp_pos = 200.0;
 	posori_task->_kv_pos = 23.0;
 
-	posori_task->_kp_ori = 400.0;
-	posori_task->_kv_ori = 35.0;
+	posori_task->_kp_ori = 200.0;
+	posori_task->_kv_ori = 23.0;
 
 	// dual proxy parameters and variables
 	double k_vir = 500.0;
