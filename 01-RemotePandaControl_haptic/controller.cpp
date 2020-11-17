@@ -3,6 +3,7 @@
 #include "redis/RedisClient.h"
 #include "timer/LoopTimer.h"
 #include "haptic_tasks/HapticController.h"
+#include "../src/Logger.h"
 
 #include <iostream>
 #include <string>
@@ -111,7 +112,9 @@ int main() {
 	redis_client_local = RedisClient();
 	redis_client_local.connect();
 
-	string remote_ip = "127.0.0.1";
+	string remote_ip = "127.0.0.1";      // local
+	// string remote_ip = "10.0.0.231";     // borns
+	// string remote_ip = "10.8.0.1";       // shenhao
 	int remote_port = 6379;
 	redis_client_remote = RedisClient();
 	redis_client_remote.connect(remote_ip, remote_port);
@@ -165,6 +168,8 @@ int main() {
 
 	double kv_haptic = 0.9 * _max_damping_device0[0];
 
+	Vector3d proxy_position_device_frame = Vector3d::Zero();
+
 	// setup redis keys to be updated with the callback
 	redis_client_local.createReadCallback(0);
 	redis_client_local.createWriteCallback(0);
@@ -184,6 +189,23 @@ int main() {
 	redis_client_local.addEigenToWriteCallback(0, DEVICE_COMMANDED_FORCE_KEYS[0], teleop_task->_commanded_force_device);
 	redis_client_local.addEigenToWriteCallback(0, DEVICE_COMMANDED_TORQUE_KEYS[0], teleop_task->_commanded_torque_device);
 	redis_client_local.addDoubleToWriteCallback(0, DEVICE_COMMANDED_GRIPPER_FORCE_KEYS[0], teleop_task->_commanded_gripper_force_device);
+
+	// setup data logging
+	string folder = "../../01-RemotePandaControl_haptic/data_logging/data/";
+	string filename = "data";
+	auto logger = new Logging::Logger(100, folder + filename);
+	
+	Vector3d log_haptic_position = Vector3d::Zero();
+	Vector3d log_haptic_velocity = Vector3d::Zero();
+	Vector3d log_haptic_proxy = haptic_proxy;
+	Vector3d log_haptic_commanded_force = Vector3d::Zero();
+
+	logger->addVectorToLog(&log_haptic_position, "haptic_position");
+	logger->addVectorToLog(&log_haptic_velocity, "haptic_velocity");
+	logger->addVectorToLog(&log_haptic_proxy, "haptic_proxy");
+	logger->addVectorToLog(&log_haptic_commanded_force, "haptic_command_force");
+
+	logger->start();
 
 	// start communication thread and loop
 	runloop = true;
@@ -239,7 +261,7 @@ int main() {
 			teleop_task->computeHapticCommands3d(robot_proxy);
 
 			Vector3d device_position = teleop_task->_current_position_device;
-			Vector3d proxy_position_device_frame = teleop_task->_home_position_device + teleop_task->_Rotation_Matrix_DeviceToRobot * (haptic_proxy - teleop_task->_center_position_robot) / Ks;
+			proxy_position_device_frame = teleop_task->_home_position_device + teleop_task->_Rotation_Matrix_DeviceToRobot * (haptic_proxy - teleop_task->_center_position_robot) / Ks;
 
 			Vector3d desired_force = k_vir * sigma_force * (proxy_position_device_frame - device_position);
 			Vector3d desired_force_diff = desired_force - prev_desired_force;
@@ -262,9 +284,16 @@ int main() {
 		// write control torques
 		redis_client_local.executeWriteCallback(0);
 
+		// update logger variables
+		log_haptic_position = teleop_task->_current_position_device;
+		log_haptic_velocity = teleop_task->_current_trans_velocity_device;
+		log_haptic_proxy = proxy_position_device_frame;
+		log_haptic_commanded_force = teleop_task->_commanded_force_device;
+
 		controller_counter++;
 	}
 
+	logger->stop();
 	communication_thread.join();
 
 	//// Send zero force/torque to haptic device through Redis keys ////

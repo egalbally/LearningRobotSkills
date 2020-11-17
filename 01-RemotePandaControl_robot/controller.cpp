@@ -6,6 +6,7 @@
 #include "tasks/JointTask.h"
 #include "tasks/PosOriTask.h"
 #include "filters/ButterworthFilter.h"
+#include "../src/Logger.h"
 
 #include <iostream>
 #include <string>
@@ -110,7 +111,7 @@ int main() {
 	VectorXd posori_task_torques = VectorXd::Zero(dof);
 	posori_task->_use_interpolation_flag = true;
 
-	posori_task->_otg->setMaxLinearVelocity(0.20);
+	posori_task->_otg->setMaxLinearVelocity(0.40);
 	posori_task->_otg->setMaxLinearAcceleration(1.0);
 	posori_task->_otg->setMaxLinearJerk(5.0);
 
@@ -157,6 +158,28 @@ int main() {
 	redis_client.addEigenToWriteCallback(0, HAPTIC_PROXY_KEY, haptic_proxy);
 	redis_client.addEigenToWriteCallback(0, SIGMA_FORCE_KEY, sigma_force);
 	redis_client.addIntToWriteCallback(0, FORCE_SPACE_DIMENSION_KEY, force_space_dimension);
+
+
+	// setup data logging
+	string folder = "../../01-RemotePandaControl_robot/data_logging/data/";
+	string filename = "data";
+	auto logger = new Logging::Logger(100, folder + filename);
+	
+	Vector3d log_robot_ee_position = x_init;
+	Vector3d log_robot_ee_velocity = Vector3d::Zero();
+	Vector3d log_robot_proxy_position = robot_proxy;
+	VectorXd log_joint_angles = robot->_q;
+	VectorXd log_joint_velocities = robot->_dq;
+	VectorXd log_joint_command_torques = command_torques;
+
+	logger->addVectorToLog(&log_robot_ee_position, "robot_ee_position");
+	logger->addVectorToLog(&log_robot_ee_velocity, "robot_ee_velocity");
+	logger->addVectorToLog(&log_robot_proxy_position, "robot_proxy_position");
+	logger->addVectorToLog(&log_joint_angles, "joint_angles");
+	logger->addVectorToLog(&log_joint_velocities, "joint_velocities");
+	logger->addVectorToLog(&log_joint_command_torques, "joint_command_torques");
+
+	logger->start();
 
 	// start communication thread
 	runloop = true;
@@ -262,8 +285,22 @@ int main() {
 		robot->position(haptic_proxy, link_name, pos_in_link);
 		redis_client.executeWriteCallback(0);
 
+		// update logger values
+		Vector3d ee_vel = Vector3d::Zero();
+		robot->linearVelocity(ee_vel, link_name, pos_in_link);
+
+		log_robot_ee_position = haptic_proxy;
+		log_robot_ee_velocity = ee_vel;
+		log_robot_proxy_position = robot_proxy;
+		log_joint_angles = robot->_q;
+		log_joint_velocities = robot->_dq;
+		log_joint_command_torques = command_torques;		
+
 		controller_counter++;
 	}
+
+	// stop logger
+	logger->stop();
 
 	//// Send zero force/torque to robot ////
 	command_torques.setZero();
