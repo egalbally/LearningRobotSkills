@@ -111,7 +111,7 @@ int main() {
 	VectorXd posori_task_torques = VectorXd::Zero(dof);
 	posori_task->_use_interpolation_flag = true;
 
-	posori_task->_otg->setMaxLinearVelocity(0.40);
+	posori_task->_otg->setMaxLinearVelocity(0.30);
 	posori_task->_otg->setMaxLinearAcceleration(1.0);
 	posori_task->_otg->setMaxLinearJerk(5.0);
 

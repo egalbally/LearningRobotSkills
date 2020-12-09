@@ -94,19 +94,30 @@ string SIGMA_FORCE_KEY = "sai2::HapticApplications::01::dual_proxy::sigma_force"
 string HAPTIC_DEVICE_READY_KEY = "sai2::HapticApplications::01::dual_proxy::haptic_device_ready";
 string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::01::dual_proxy::controller_running";
 
+int haptic_device_ready = 0;
 int force_space_dimension = 0;
 Matrix3d sigma_force = Matrix3d::Zero();
-int haptic_device_ready = 0;
 Vector3d haptic_proxy = Vector3d::Zero();
 Vector3d robot_proxy = Vector3d::Zero();
+
+int delayed_force_space_dimension = 0;
+Matrix3d delayed_sigma_force = Matrix3d::Zero();
+Vector3d delayed_haptic_proxy = Vector3d::Zero();
+Vector3d delayed_robot_proxy = Vector3d::Zero();
 
 RedisClient redis_client_local;
 RedisClient redis_client_remote;
 
 // communication function prototype
-void communication();
+void communication(int delay);
 
-int main() {
+int main(int argc, char* argv[]) {
+
+	int communication_delay = 0;
+	if(argc >= 2)
+	{
+		communication_delay = stoi(argv[1]);
+	}
 
 	// start redis clients
 	redis_client_local = RedisClient();
@@ -209,7 +220,7 @@ int main() {
 
 	// start communication thread and loop
 	runloop = true;
-	thread communication_thread(communication);
+	thread communication_thread(communication, communication_delay);
 
 	// create a timer
 	double control_loop_freq = 1000.0;
@@ -261,9 +272,9 @@ int main() {
 			teleop_task->computeHapticCommands3d(robot_proxy);
 
 			Vector3d device_position = teleop_task->_current_position_device;
-			proxy_position_device_frame = teleop_task->_home_position_device + teleop_task->_Rotation_Matrix_DeviceToRobot * (haptic_proxy - teleop_task->_center_position_robot) / Ks;
+			proxy_position_device_frame = teleop_task->_home_position_device + teleop_task->_Rotation_Matrix_DeviceToRobot * (delayed_haptic_proxy - teleop_task->_center_position_robot) / Ks;
 
-			Vector3d desired_force = k_vir * sigma_force * (proxy_position_device_frame - device_position);
+			Vector3d desired_force = k_vir * delayed_sigma_force * (proxy_position_device_frame - device_position);
 			Vector3d desired_force_diff = desired_force - prev_desired_force;
 			if( desired_force_diff.norm() > max_force_diff )
 			{
@@ -274,7 +285,7 @@ int main() {
 				desired_force *= max_force/desired_force.norm();
 			}
 
-			teleop_task->_commanded_force_device = desired_force - kv_haptic * sigma_force * teleop_task->_current_trans_velocity_device;
+			teleop_task->_commanded_force_device = desired_force - kv_haptic * delayed_sigma_force * teleop_task->_current_trans_velocity_device;
 
 			// 
 			prev_desired_force = desired_force;
@@ -310,8 +321,18 @@ int main() {
 
 }
 
-void communication()
+
+
+
+void communication(int delay)
 {
+	// prepare delay
+	const double communication_delay_ms = delay;
+
+	queue<Vector3d> robot_proxy_buffer;
+	queue<Vector3d> haptic_proxy_buffer;
+	queue<Matrix3d> sigma_force_buffer;
+	queue<int> force_space_dimension_buffer;
 
 	// prepare redis client remote communication
 	redis_client_remote.createReadCallback(0);
@@ -321,7 +342,7 @@ void communication()
 	redis_client_remote.addIntToReadCallback(0, FORCE_SPACE_DIMENSION_KEY, force_space_dimension);
 	redis_client_remote.addEigenToReadCallback(0, SIGMA_FORCE_KEY, sigma_force);
 
-	redis_client_remote.addEigenToWriteCallback(0, ROBOT_PROXY_KEY, robot_proxy);
+	redis_client_remote.addEigenToWriteCallback(0, ROBOT_PROXY_KEY, delayed_robot_proxy);
 	redis_client_remote.addIntToWriteCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_device_ready);
 
 	// create a timer
@@ -336,12 +357,47 @@ void communication()
 	double start_time = timer.elapsedTime(); //secs
 
 	unsigned long long communication_counter = 0;
+	const int communication_delay_ncycles = communication_delay_ms / 1000.0 * communication_freq;
 	
 	while(runloop)
 	{
 		timer.waitForNextLoop();
 
 		redis_client_remote.executeReadCallback(0);
+
+		if(communication_delay_ncycles == 0)
+		{
+			delayed_haptic_proxy = haptic_proxy;
+			delayed_robot_proxy = robot_proxy;
+			delayed_sigma_force = sigma_force;
+			delayed_force_space_dimension = force_space_dimension;
+
+		}
+		else
+		{
+
+			robot_proxy_buffer.push(robot_proxy);
+			haptic_proxy_buffer.push(haptic_proxy);
+			sigma_force_buffer.push(sigma_force);
+			force_space_dimension_buffer.push(force_space_dimension);
+
+			if(communication_counter > communication_delay_ncycles)
+			{
+				delayed_haptic_proxy = haptic_proxy_buffer.front();
+				delayed_robot_proxy = robot_proxy_buffer.front();
+				delayed_sigma_force = sigma_force_buffer.front();
+				delayed_force_space_dimension = force_space_dimension_buffer.front();
+
+				robot_proxy_buffer.pop();
+				haptic_proxy_buffer.pop();
+				sigma_force_buffer.pop();
+				force_space_dimension_buffer.pop();
+
+				communication_counter--;
+			}
+
+		}
+
 		redis_client_remote.executeWriteCallback(0);
 
 		communication_counter++;
