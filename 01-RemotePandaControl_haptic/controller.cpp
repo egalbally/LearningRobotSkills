@@ -90,6 +90,9 @@ string ROBOT_PROXY_KEY = "sai2::HapticApplications::01::dual_proxy::robot_proxy"
 string HAPTIC_PROXY_KEY = "sai2::HapticApplications::01::dual_proxy::haptic_proxy";
 string FORCE_SPACE_DIMENSION_KEY = "sai2::HapticApplications::01::dual_proxy::force_space_dimension";
 string SIGMA_FORCE_KEY = "sai2::HapticApplications::01::dual_proxy::sigma_force";
+string ROBOT_PROXY_ROT_KEY = "sai2::HapticApplications::01::dual_proxy::robot_proxy_rot";
+string ROBOT_DEFAULT_ROT_KEY = "sai2::HapticApplications::01::dual_proxy::robot_default_rot";
+string ROBOT_DEFAULT_POS_KEY = "sai2::HapticApplications::01::dual_proxy::robot_default_pos";
 
 string HAPTIC_DEVICE_READY_KEY = "sai2::HapticApplications::01::dual_proxy::haptic_device_ready";
 string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::01::dual_proxy::controller_running";
@@ -99,11 +102,13 @@ int force_space_dimension = 0;
 Matrix3d sigma_force = Matrix3d::Zero();
 Vector3d haptic_proxy = Vector3d::Zero();
 Vector3d robot_proxy = Vector3d::Zero();
+Matrix3d robot_proxy_rot = Matrix3d::Identity();
 
 int delayed_force_space_dimension = 0;
 Matrix3d delayed_sigma_force = Matrix3d::Zero();
 Vector3d delayed_haptic_proxy = Vector3d::Zero();
 Vector3d delayed_robot_proxy = Vector3d::Zero();
+Matrix3d delayed_robot_proxy_rot = Matrix3d::Identity();
 
 RedisClient redis_client_local;
 RedisClient redis_client_remote;
@@ -136,8 +141,8 @@ int main(int argc, char* argv[]) {
 	signal(SIGINT, &sighandler);
 
 	// dual proxy parameters
-	double k_vir = 200.0;
-	double max_force_diff = 0.02;
+	double k_vir = 100.0;
+	double max_force_diff = 0.2;
 	double max_force = 10.0;
 
 	Vector3d prev_desired_force = Vector3d::Zero();
@@ -149,8 +154,13 @@ int main(int argc, char* argv[]) {
 		cout << "run the robot controller before the haptic controller" << endl;
 		return 0;
 	}
-	Vector3d robot_workspace_center = redis_client_remote.getEigenMatrixJSON(HAPTIC_PROXY_KEY);
-	auto teleop_task = new Sai2Primitives::HapticController(robot_workspace_center, Matrix3d::Zero());
+	Vector3d robot_workspace_center = redis_client_remote.getEigenMatrixJSON(ROBOT_DEFAULT_POS_KEY);
+	Matrix3d robot_rotation_default = redis_client_remote.getEigenMatrixJSON(ROBOT_DEFAULT_ROT_KEY);
+	Matrix3d R_device_robot = Matrix3d::Identity();
+	Matrix3d device_rot_center = Matrix3d::Identity();
+	Vector3d device_pos_center = Vector3d::Zero();
+	Matrix3d device_release_rot = Matrix3d::Identity();
+	auto teleop_task = new Sai2Primitives::HapticController(robot_workspace_center, robot_rotation_default, R_device_robot);
 	teleop_task->_send_haptic_feedback = false;
 
 	//User switch states
@@ -159,6 +169,7 @@ int main(int argc, char* argv[]) {
 	bool gripper_state_prev = false;
 
 	robot_proxy = robot_workspace_center;
+	robot_proxy_rot = robot_rotation_default;
 
 	 //Task scaling factors
 	double Ks = 2.5;
@@ -254,8 +265,10 @@ int main(int argc, char* argv[]) {
 
 			if(teleop_task->device_homed && gripper_state)
 			{
-				teleop_task->setRobotCenter(haptic_proxy);
-				teleop_task->setDeviceCenter(teleop_task->_current_position_device);
+				// teleop_task->setRobotCenter(haptic_proxy, robot_rotation_default);
+				teleop_task->setDeviceCenter(teleop_task->_current_position_device, teleop_task->_current_rotation_device);
+				device_rot_center = teleop_task->_current_rotation_device;
+				device_pos_center = teleop_task->_current_position_device;
 
 				// Reinitialize controllers
 				teleop_task->reInitializeTask();
@@ -268,8 +281,26 @@ int main(int argc, char* argv[]) {
 		else if(state == CONTROL)
 		{
 
-			// dual proxy
-			teleop_task->computeHapticCommands3d(robot_proxy);
+			// compute haptic commands
+			if(gripper_state) //Full control
+			{
+				if(!gripper_state_prev)
+				{
+					device_rot_center = device_release_rot.transpose() * teleop_task->_current_rotation_device;
+					teleop_task->setDeviceCenter(device_pos_center, device_rot_center);
+				
+				}
+				teleop_task->computeHapticCommands6d(robot_proxy, robot_proxy_rot);
+
+			}
+			else //Only position control
+			{
+				if(gripper_state_prev)
+				{
+					device_release_rot = teleop_task->_current_rotation_device * device_rot_center.transpose();
+				}
+				teleop_task->computeHapticCommands3d(robot_proxy);
+			}
 
 			Vector3d device_position = teleop_task->_current_position_device;
 			proxy_position_device_frame = teleop_task->_home_position_device + teleop_task->_Rotation_Matrix_DeviceToRobot * (delayed_haptic_proxy - teleop_task->_center_position_robot) / Ks;
@@ -330,6 +361,7 @@ void communication(int delay)
 	const double communication_delay_ms = delay;
 
 	queue<Vector3d> robot_proxy_buffer;
+	queue<Matrix3d> robot_proxy_rot_buffer;
 	queue<Vector3d> haptic_proxy_buffer;
 	queue<Matrix3d> sigma_force_buffer;
 	queue<int> force_space_dimension_buffer;
@@ -343,6 +375,7 @@ void communication(int delay)
 	redis_client_remote.addEigenToReadCallback(0, SIGMA_FORCE_KEY, sigma_force);
 
 	redis_client_remote.addEigenToWriteCallback(0, ROBOT_PROXY_KEY, delayed_robot_proxy);
+	redis_client_remote.addEigenToWriteCallback(0, ROBOT_PROXY_ROT_KEY, delayed_robot_proxy_rot);
 	redis_client_remote.addIntToWriteCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_device_ready);
 
 	// create a timer
@@ -369,6 +402,7 @@ void communication(int delay)
 		{
 			delayed_haptic_proxy = haptic_proxy;
 			delayed_robot_proxy = robot_proxy;
+			delayed_robot_proxy_rot = robot_proxy_rot;
 			delayed_sigma_force = sigma_force;
 			delayed_force_space_dimension = force_space_dimension;
 
@@ -377,6 +411,7 @@ void communication(int delay)
 		{
 
 			robot_proxy_buffer.push(robot_proxy);
+			robot_proxy_rot_buffer.push(robot_proxy_rot);
 			haptic_proxy_buffer.push(haptic_proxy);
 			sigma_force_buffer.push(sigma_force);
 			force_space_dimension_buffer.push(force_space_dimension);
@@ -385,10 +420,12 @@ void communication(int delay)
 			{
 				delayed_haptic_proxy = haptic_proxy_buffer.front();
 				delayed_robot_proxy = robot_proxy_buffer.front();
+				delayed_robot_proxy_rot = robot_proxy_rot_buffer.front();
 				delayed_sigma_force = sigma_force_buffer.front();
 				delayed_force_space_dimension = force_space_dimension_buffer.front();
 
 				robot_proxy_buffer.pop();
+				robot_proxy_rot_buffer.pop();
 				haptic_proxy_buffer.pop();
 				sigma_force_buffer.pop();
 				force_space_dimension_buffer.pop();

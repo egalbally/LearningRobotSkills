@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 2.8.12)
 project (HapticApplications)
 SET(CMAKE_CXX_FLAGS "-std=c++11")
-SET(CMAKE_BUILD_TYPE "Debug")
-# SET(CMAKE_BUILD_TYPE "Release")
+# SET(CMAKE_BUILD_TYPE "Debug")
+SET(CMAKE_BUILD_TYPE "Release")
 
 # set common source
 set (HAPTIC_APPLICATIONS_COMMON_SOURCE
@@ -82,5 +82,6 @@ set(HAPTIC_APPLICATIONS_COMMON_LIBRARIES
 # add apps
 set (HAPTIC_APPLICATIONS_BINARY_DIR                  ${PROJECT_SOURCE_DIR}/bin)
 
+add_subdirectory(00-force_sensor_calibration)
 add_subdirectory(01-RemotePandaControl_robot)
 add_subdirectory(01-RemotePandaControl_haptic)

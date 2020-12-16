@@ -36,6 +36,8 @@ string JOINT_ANGLES_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::
 string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::dq";
 string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::01-panda::simviz::actuators::tau_cmd";
 
+string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::sensed_force";
+
 RedisClient redis_client;
 
 // simulation function prototype
@@ -246,6 +248,11 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 	VectorXd command_torques = VectorXd::Zero(dof);
 	redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
 
+	// sensed force
+	Vector3d sensed_force = Vector3d::Zero();
+	Vector3d sensed_moment = Vector3d::Zero();
+	VectorXd sensed_force_moment = VectorXd::Zero(6);
+
 	// redis communication
 	redis_client.createReadCallback(0);
 	redis_client.addEigenToReadCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
@@ -253,6 +260,8 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 	redis_client.createWriteCallback(0);
 	redis_client.addEigenToWriteCallback(0, JOINT_ANGLES_KEY, robot->_q);
 	redis_client.addEigenToWriteCallback(0, JOINT_VELOCITIES_KEY, robot->_dq);
+	redis_client.addEigenToWriteCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment);
+
 
 	// create a timer
 	double sim_frequency = 2000.0;
@@ -280,11 +289,11 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 		robot->updateKinematics();
 
 		// // read end-effector task forces from the force sensor simulation
-		// force_sensor->update(sim);
-		// force_sensor->getForceLocalFrame(sensed_force);
-		// force_sensor->getMomentLocalFrame(sensed_moment);
+		force_sensor->update(sim);
+		force_sensor->getForceLocalFrame(sensed_force);
+		force_sensor->getMomentLocalFrame(sensed_moment);
+		sensed_force_moment << -sensed_force, -sensed_moment;
 		
-
 		redis_client.executeWriteCallback(0);
 
 		simulation_counter++;
