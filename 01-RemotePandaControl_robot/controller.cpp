@@ -70,7 +70,7 @@ queue<Vector3d> pfilter_sensed_force_buffer;
 queue<Vector3d> pfilter_sensed_velocity_buffer;
 
 const double control_loop_freq = 1000.0;
-const double pfilter_freq = 20.0;
+const double pfilter_freq = 50.0;
 const double freq_ratio_filter_control = pfilter_freq / control_loop_freq;
 
 // particle filter loop
@@ -162,8 +162,8 @@ int main() {
 	posori_task->_otg->setMaxAngularAcceleration(3*M_PI);
 	posori_task->_otg->setMaxAngularJerk(15*M_PI);
 
-	posori_task->_kp_pos = 200.0;
-	posori_task->_kv_pos = 23.0;
+	posori_task->_kp_pos = 100.0;
+	posori_task->_kv_pos = 17.0;
 
 	posori_task->_kp_ori = 200.0;
 	posori_task->_kv_ori = 23.0;
@@ -194,8 +194,8 @@ int main() {
 
 
 	// dual proxy parameters and variables
-	double k_vir = 300.0;
-	double max_force_diff = 0.2;
+	double k_vir = 250.0;
+	double max_force_diff = 0.1;
 	double max_force = 10.0;
 
 	int haptic_ready = 0;
@@ -469,23 +469,20 @@ void particle_filter()
 	// create particle filter
 	auto pfilter = new Sai2Primitives::ForceSpaceParticleFilter(n_particles);
 
-	// pfilter->_mean_scatter = 0.0;
-	// pfilter->_std_scatter = 0.025;
+	pfilter->_mean_scatter = 0.0;
+	pfilter->_std_scatter = 0.025;
 
-	// pfilter->_memory_coefficient = 0.0;
-
-	// pfilter->_coeff_friction = 0.0;
+	pfilter->_alpha_add = 0.3;
 
 	pfilter->_F_low = 0.0;
-	pfilter->_F_high = 3.0;
+	pfilter->_F_high = 2.0;
 	pfilter->_v_low = 0.001;
 	pfilter->_v_high = 0.01;
 
-	pfilter->_F_low_add = 3.0;
-	pfilter->_F_high_add = 7.0;
+	pfilter->_F_low_add = 1.0;
+	pfilter->_F_high_add = 5.0;
 	pfilter->_v_low_add = 0.001;
 	pfilter->_v_high_add = 0.005;
-
 
 	Vector3d evals = Vector3d::Zero();
 	Matrix3d evecs = Matrix3d::Identity();
@@ -509,96 +506,10 @@ void particle_filter()
 		sigma_motion = Matrix3d::Identity() - sigma_force;
 		force_space_dimension = pfilter->_force_space_dimension;
 
-
-
-		// Vector3d prospective_particle = Vector3d::Zero();
-		// if(motion_control_pfilter.norm() > 0.001)
+		// for(int i=0 ; i<n_particles ; i++)
 		// {
-		// 	prospective_particle = motion_control_pfilter.normalized();
+		// 	particle_positions_to_redis.col(i) = pfilter->_particles[i];
 		// }
-		// double for_weight_pp_add = pfilter->wf_pw(prospective_particle, measured_force_pfilter, pfilter->_F_low_add, pfilter->_F_high_add);
-		// double vel_weight_pp_add = pfilter->wv_pw(prospective_particle, measured_velocity_pfilter, pfilter->_v_low_add, pfilter->_v_high_add);
-		// double for_weight_pp = pfilter->wf_pw(prospective_particle, measured_force_pfilter, pfilter->_F_low, pfilter->_F_high);
-		// double vel_weight_pp = pfilter->wv_pw(prospective_particle, measured_velocity_pfilter, pfilter->_v_low, pfilter->_v_high);
-
-		// Vector3d center_particle = Vector3d::Zero();
-		// double for_weight_cp_add = pfilter->wf_pw(center_particle, measured_force_pfilter, pfilter->_F_low_add, pfilter->_F_high_add);
-		// double vel_weight_cp_add = pfilter->wv_pw(center_particle, measured_velocity_pfilter, pfilter->_v_low_add, pfilter->_v_high_add);
-		// double for_weight_cp = pfilter->wf_pw(center_particle, measured_force_pfilter, pfilter->_F_low, pfilter->_F_high);
-		// double vel_weight_cp = pfilter->wv_pw(center_particle, measured_velocity_pfilter, pfilter->_v_low, pfilter->_v_high);
-
-		// Vector3d down_particle = Vector3d(0, 0, -1);
-		// double for_weight_dp_add = pfilter->wf_pw(down_particle, measured_force_pfilter, pfilter->_F_low_add, pfilter->_F_high_add);
-		// double vel_weight_dp_add = pfilter->wv_pw(down_particle, measured_velocity_pfilter, pfilter->_v_low_add, pfilter->_v_high_add);
-		// double for_weight_dp = pfilter->wf_pw(down_particle, measured_force_pfilter, pfilter->_F_low, pfilter->_F_high);
-		// double vel_weight_dp = pfilter->wv_pw(down_particle, measured_velocity_pfilter, pfilter->_v_low, pfilter->_v_high);
-
-		// Vector3d right_particle = Vector3d(0, 1, 0);
-		// double for_weight_rp_add = pfilter->wf_pw(right_particle, measured_force_pfilter, pfilter->_F_low_add, pfilter->_F_high_add);
-		// double vel_weight_rp_add = pfilter->wv_pw(right_particle, measured_velocity_pfilter, pfilter->_v_low_add, pfilter->_v_high_add);
-		// double for_weight_rp = pfilter->wf_pw(right_particle, measured_force_pfilter, pfilter->_F_low, pfilter->_F_high);
-		// double vel_weight_rp = pfilter->wv_pw(right_particle, measured_velocity_pfilter, pfilter->_v_low, pfilter->_v_high);
-
-
-		// if(previous_force_space_dimension != force_space_dimension)
-		// {
-		// 	cout << "********************************" << endl;
-		// 	cout << "pf coutner : " << pf_counter << endl;
-		// 	cout << "contact space dim : " << force_space_dimension << endl;
-		// 	cout << "previous contact space dim : " << previous_force_space_dimension << endl;
-		// 	cout << "eigenvectors :\n" << evecs << endl;
-		// 	cout << "eigenvalues :\n" << evals.transpose() << endl;
-		// 	cout << "eigenvalues before scaling :\n" << evals_no_scaling.transpose() << endl;
-		// 	cout << "pfilter motion control : " << motion_control_pfilter.transpose() << endl;
-		// 	cout << "pfilter force control : " << force_control_pfilter.transpose() << endl;
-		// 	cout << "pfilter meas vel : " << measured_velocity_pfilter.transpose() << endl;
-		// 	cout << "pfilter meas force : " << measured_force_pfilter.transpose() << endl;
-		// 	cout << "prospective particle : " << prospective_particle.transpose() << endl; 
-		// 	cout << "force weight pp add : " << for_weight_pp_add << endl; 
-		// 	cout << "velocity weight pp_add : " << vel_weight_pp_add << endl;
-		// 	cout << "prob add particle : " << vel_weight_pp_add*for_weight_pp_add << endl;
-		// 	cout << "force weight cp : " << for_weight_cp << endl; 
-		// 	cout << "velocity weight cp : " << vel_weight_cp << endl; 
-		// 	cout << "force weight dp : " << for_weight_dp << endl; 
-		// 	cout << "velocity weight dp : " << vel_weight_dp << endl; 
-		// 	cout << "force weight rp : " << for_weight_rp << endl; 
-		// 	cout << "velocity weight rp : " << vel_weight_rp << endl; 
-		// 	cout << endl;
-		// }
-
-		// if(pf_counter % 50 == 0)
-		// {
-		// 	cout << "-----------------------------------" << endl;
-		// 	cout << "-----------------------------------" << endl;
-		// 	cout << "pf coutner : " << pf_counter << endl;
-		// 	cout << "contact space dim : " << force_space_dimension << endl;
-		// 	cout << "previous contact space dim : " << previous_force_space_dimension << endl;
-		// 	cout << "eigenvectors :\n" << evecs << endl;
-		// 	cout << "eigenvalues :\n" << evals.transpose() << endl;
-		// 	cout << "eigenvalues before scaling :\n" << evals_no_scaling.transpose() << endl;
-		// 	cout << "pfilter motion control : " << motion_control_pfilter.transpose() << endl;
-		// 	cout << "pfilter force control : " << force_control_pfilter.transpose() << endl;
-		// 	cout << "pfilter meas vel : " << measured_velocity_pfilter.transpose() << endl;
-		// 	cout << "pfilter meas force : " << measured_force_pfilter.transpose() << endl;
-		// 	cout << "force weight pp_add : " << for_weight_pp_add << endl; 
-		// 	cout << "velocity weight pp_add : " << vel_weight_pp_add << endl;
-		// 	cout << "prob add particle : " << vel_weight_pp_add*for_weight_pp_add << endl;
-		// 	cout << "force weight cp : " << for_weight_cp << endl; 
-		// 	cout << "velocity weight cp : " << vel_weight_cp << endl; 
-		// 	cout << "force weight dp : " << for_weight_dp << endl; 
-		// 	cout << "velocity weight dp : " << vel_weight_dp << endl; 
-		// 	cout << "force weight rp : " << for_weight_rp << endl; 
-		// 	cout << "velocity weight rp : " << vel_weight_rp << endl; 
-		// 	cout << endl;			
-		// }
-
-
-
-		// previous_force_space_dimension = force_space_dimension;
-		for(int i=0 ; i<n_particles ; i++)
-		{
-			particle_positions_to_redis.col(i) = pfilter->_particles[i];
-		}
 		// redis_client_particles.setEigenMatrixJSON(PARTICLE_POSITIONS_KEY, particle_positions_to_redis);
 
 		pf_counter++;

@@ -142,7 +142,7 @@ int main(int argc, char* argv[]) {
 
 	// dual proxy parameters
 	double k_vir = 100.0;
-	double max_force_diff = 0.2;
+	double max_force_diff = 0.1;
 	double max_force = 10.0;
 
 	Vector3d prev_desired_force = Vector3d::Zero();
