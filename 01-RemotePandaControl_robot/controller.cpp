@@ -73,6 +73,11 @@ const double control_loop_freq = 1000.0;
 const double pfilter_freq = 50.0;
 const double freq_ratio_filter_control = pfilter_freq / control_loop_freq;
 
+// Set sensor frame transform in end-effector frame
+Affine3d sensor_transform_in_link = Affine3d::Identity();
+const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.0);
+const Vector3d pos_in_link = Vector3d(0.0,0.0,0.12);
+
 // particle filter loop
 void particle_filter();
 
@@ -170,6 +175,12 @@ int main() {
 
 	// force sensing
 	Matrix3d R_link_sensor = Matrix3d::Identity();
+	R_link_sensor = AngleAxisd(-3.0/2.0*M_PI, Vector3d::UnitZ()).toRotationMatrix();
+
+	sensor_transform_in_link.translation() = sensor_pos_in_link;
+	sensor_transform_in_link.linear() = R_link_sensor;
+	posori_task->setForceSensorFrame(link_name, sensor_transform_in_link);
+
 	VectorXd sensed_force_moment_local_frame = VectorXd::Zero(6);
 	VectorXd sensed_force_moment_world_frame = VectorXd::Zero(6);
 	VectorXd force_bias = VectorXd::Zero(6);
