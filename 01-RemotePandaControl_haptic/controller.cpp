@@ -128,8 +128,8 @@ int main(int argc, char* argv[]) {
 	redis_client_local = RedisClient();
 	redis_client_local.connect();
 
-	string remote_ip = "127.0.0.1";      // local
-	// string remote_ip = "10.0.0.231";     // borns
+	// string remote_ip = "127.0.0.1";      // local
+	string remote_ip = "10.0.0.231";     // borns
 	// string remote_ip = "10.8.0.1";       // shenhao
 	int remote_port = 6379;
 	redis_client_remote = RedisClient();
@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
 	teleop_task->_max_force_device = _max_force_device0[0];
 	teleop_task->_max_torque_device = _max_force_device0[1];
 
-	double kv_haptic = 0.9 * _max_damping_device0[0];
+	double kv_haptic = 0.5 * _max_damping_device0[0];
 
 	Vector3d proxy_position_device_frame = Vector3d::Zero();
 
@@ -263,8 +263,13 @@ int main(int argc, char* argv[]) {
   			// compute homing haptic device
   			teleop_task->HomingTask();
 
-			if(teleop_task->device_homed && gripper_state)
+  			// cout << teleop_task->device_homed << endl;
+
+			// if(teleop_task->device_homed && gripper_state)
+			if(controller_counter > 3000 && gripper_state)
 			{
+				teleop_task->device_homed = true;
+
 				// teleop_task->setRobotCenter(haptic_proxy, robot_rotation_default);
 				teleop_task->setDeviceCenter(teleop_task->_current_position_device, teleop_task->_current_rotation_device);
 				device_rot_center = teleop_task->_current_rotation_device;
@@ -282,25 +287,25 @@ int main(int argc, char* argv[]) {
 		{
 
 			// compute haptic commands
-			if(gripper_state) //Full control
+			// if(gripper_state) //Full control
 			{
-				if(!gripper_state_prev)
-				{
-					device_rot_center = device_release_rot.transpose() * teleop_task->_current_rotation_device;
-					teleop_task->setDeviceCenter(device_pos_center, device_rot_center);
+				// if(!gripper_state_prev)
+				// {
+					// device_rot_center = device_release_rot.transpose() * teleop_task->_current_rotation_device;
+					// teleop_task->setDeviceCenter(device_pos_center, device_rot_center);
 				
-				}
+				// }
 				teleop_task->computeHapticCommands6d(robot_proxy, robot_proxy_rot);
 
 			}
-			else //Only position control
-			{
-				if(gripper_state_prev)
-				{
-					device_release_rot = teleop_task->_current_rotation_device * device_rot_center.transpose();
-				}
-				teleop_task->computeHapticCommands3d(robot_proxy);
-			}
+			// else //Only position control
+			// {
+				// if(gripper_state_prev)
+				// {
+					// device_release_rot = teleop_task->_current_rotation_device * device_rot_center.transpose();
+				// }
+				// teleop_task->computeHapticCommands3d(robot_proxy);
+			// }
 
 			Vector3d device_position = teleop_task->_current_position_device;
 			proxy_position_device_frame = teleop_task->_home_position_device + teleop_task->_Rotation_Matrix_DeviceToRobot * (delayed_haptic_proxy - teleop_task->_center_position_robot) / Ks;
