@@ -56,6 +56,7 @@ RedisClient redis_client;
 const int n_particles = 1000;
 MatrixXd particle_positions_to_redis = MatrixXd::Zero(3, n_particles);
 int force_space_dimension = 0;
+int prev_force_space_dimension = 0;
 Matrix3d sigma_force = Matrix3d::Zero();
 Matrix3d sigma_motion = Matrix3d::Identity();
 
@@ -175,7 +176,7 @@ int main() {
 
 	// force sensing
 	Matrix3d R_link_sensor = Matrix3d::Identity();
-	R_link_sensor = AngleAxisd(-3.0/2.0*M_PI, Vector3d::UnitZ()).toRotationMatrix();
+	R_link_sensor = AngleAxisd(-3.0/4.0*M_PI, Vector3d::UnitZ()).toRotationMatrix();
 
 	sensor_transform_in_link.translation() = sensor_pos_in_link;
 	sensor_transform_in_link.linear() = R_link_sensor;
@@ -192,9 +193,9 @@ int main() {
 
 	if(!flag_simulation)
 	{
-		// force_bias << -0.407025,    2.03665, -0.0510554, -0.0856087,   0.393342,  0.0273708;
-		// tool_mass = 0.361898;
-		// tool_com = Vector3d(-4.76184e-05, -0.000655773,    0.0354622);
+		force_bias << 1.50146,   -8.19901,  -0.695169,  -0.987652,   0.290632, -0.0453239;
+		tool_mass = 0.33;
+		tool_com = Vector3d(-0.00492734, -0.00195005,   0.0859595);
 	}
 
 	// remove inertial forces from tool
@@ -258,6 +259,8 @@ int main() {
 	VectorXd log_joint_angles = robot->_q;
 	VectorXd log_joint_velocities = robot->_dq;
 	VectorXd log_joint_command_torques = command_torques;
+	VectorXd log_sensed_force_moments = VectorXd::Zero(6);
+	Vector3d log_desired_force = Vector3d::Zero();
 
 	logger->addVectorToLog(&log_robot_ee_position, "robot_ee_position");
 	logger->addVectorToLog(&log_robot_ee_velocity, "robot_ee_velocity");
@@ -265,6 +268,8 @@ int main() {
 	logger->addVectorToLog(&log_joint_angles, "joint_angles");
 	logger->addVectorToLog(&log_joint_velocities, "joint_velocities");
 	logger->addVectorToLog(&log_joint_command_torques, "joint_command_torques");
+	logger->addVectorToLog(&log_sensed_force_moments, "sensed_forces_moments");
+	logger->addVectorToLog(&log_desired_force, "desired_force");
 
 	logger->start();
 
@@ -362,6 +367,21 @@ int main() {
 			posori_task->_sigma_force = sigma_force;
 			posori_task->_sigma_position = sigma_motion;
 
+			if(force_space_dimension >= 1) {
+
+				Vector3d local_z = posori_task->_current_orientation.col(2);
+
+				if(prev_force_space_dimension == 0) {
+					posori_task->setAngularMotionAxis(local_z);
+				}
+				else {
+					posori_task->updateAngularMotionAxis(local_z);
+				}
+			}
+			else {
+				posori_task->setFullAngularMotionControl();
+			}
+
 			Vector3d robot_position = posori_task->_current_position;
 
 			Vector3d motion_proxy = robot_position + sigma_motion * (robot_proxy - robot_position);
@@ -441,7 +461,9 @@ int main() {
 		log_robot_proxy_position = robot_proxy;
 		log_joint_angles = robot->_q;
 		log_joint_velocities = robot->_dq;
-		log_joint_command_torques = command_torques;		
+		log_joint_command_torques = command_torques;
+		log_sensed_force_moments = sensed_force_moment_world_frame;
+		log_desired_force = posori_task->_desired_force;
 
 		controller_counter++;
 	}
@@ -484,16 +506,17 @@ void particle_filter()
 	pfilter->_std_scatter = 0.025;
 
 	pfilter->_alpha_add = 0.3;
+	pfilter->_alpha_remove = 0.05;
 
-	pfilter->_F_low = 0.0;
-	pfilter->_F_high = 2.0;
-	pfilter->_v_low = 0.001;
-	pfilter->_v_high = 0.01;
+	pfilter->_F_low = 2.0;
+	pfilter->_F_high = 6.0;
+	pfilter->_v_low = 0.01;
+	pfilter->_v_high = 0.07;
 
-	pfilter->_F_low_add = 1.0;
-	pfilter->_F_high_add = 5.0;
-	pfilter->_v_low_add = 0.001;
-	pfilter->_v_high_add = 0.005;
+	pfilter->_F_low_add = 5.0;
+	pfilter->_F_high_add = 10.0;
+	pfilter->_v_low_add = 0.02;
+	pfilter->_v_high_add = 0.1;
 
 	Vector3d evals = Vector3d::Zero();
 	Matrix3d evecs = Matrix3d::Identity();
