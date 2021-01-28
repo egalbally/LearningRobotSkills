@@ -411,6 +411,7 @@ int main() {
 				cerr << e.what() << endl;
 				cout << "setting torques to zero for this control cycle" << endl;
 				cout << endl;
+				// posori_task_torques.setZero(); // set task torques to zero, TODO: test this
 			}
 			joint_task->computeTorques(joint_task_torques);
 
@@ -418,6 +419,7 @@ int main() {
 
 			// remember values
 			prev_desired_force = desired_force;
+			prev_force_space_dimension = force_space_dimension;
 		}
 
 		// write control torques and dual proxy variables
