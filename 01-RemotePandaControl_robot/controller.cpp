@@ -87,8 +87,7 @@ const bool flag_simulation = true;
 
 int main() {
 
-	if(!flag_simulation)
-	{
+	if(!flag_simulation) {
 		ROBOT_COMMAND_TORQUES_KEY = "sai2::FrankaPanda::actuators::fgc";
 		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::sensors::q";
 		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::sensors::dq";
@@ -191,8 +190,7 @@ int main() {
 	Vector3d init_force = Vector3d::Zero();
 	bool first_loop = true;
 
-	if(!flag_simulation)
-	{
+	if(!flag_simulation) {
 		force_bias << 1.50146,   -8.19901,  -0.695169,  -0.987652,   0.290632, -0.0453239;
 		tool_mass = 0.33;
 		tool_com = Vector3d(-0.00492734, -0.00195005,   0.0859595);
@@ -228,8 +226,7 @@ int main() {
 
     MatrixXd mass_from_robot = MatrixXd::Identity(dof,dof);
     VectorXd coriolis_from_robot = VectorXd::Zero(dof);
-	if(!flag_simulation)
-	{
+	if(!flag_simulation) {
 		redis_client.addEigenToReadCallback(0, MASSMATRIX_KEY, mass_from_robot);
 		redis_client.addEigenToReadCallback(0, CORIOLIS_KEY, coriolis_from_robot);
 	}
@@ -290,21 +287,18 @@ int main() {
 	bool fTimerDidSleep = true;
 	double start_time = timer.elapsedTime(); //secs
 
-	while (runloop)
-	{
+	while (runloop) {
 		// wait for next scheduled loop
 		timer.waitForNextLoop();
 		current_time = timer.elapsedTime() - start_time;
 
 		// read haptic state and robot state
 		redis_client.executeReadCallback(0);
-		if(flag_simulation)
-		{
+		if(flag_simulation) {
 			robot->updateModel();
 			robot->coriolisForce(coriolis);
 		}
-		else
-		{
+		else {
 			robot->updateKinematics();
 			robot->_M = mass_from_robot;
 			robot->updateInverseInertia();
@@ -327,8 +321,7 @@ int main() {
 		sensed_force_moment_local_frame.head(3) += p_tool_local_frame;
 		sensed_force_moment_local_frame.tail(3) += tool_com.cross(p_tool_local_frame);
 
-		if(first_loop)
-		{
+		if(first_loop) {
 			init_force = sensed_force_moment_local_frame.head(3);
 			first_loop = false;
 		}
@@ -340,15 +333,13 @@ int main() {
 		sensed_force_moment_world_frame.tail(3) = R_world_sensor * sensed_force_moment_local_frame.tail(3);
 
 
-		if(state == INIT)
-		{
+		if(state == INIT) {
 			joint_task->updateTaskModel(MatrixXd::Identity(dof,dof));
 
 			joint_task->computeTorques(joint_task_torques);
 			command_torques = joint_task_torques + coriolis;
 
-			if(haptic_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2)
-			{
+			if(haptic_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
 				// Reinitialize controllers
 				posori_task->reInitializeTask();
 				joint_task->reInitializeTask();
@@ -361,8 +352,7 @@ int main() {
 			}
 		}
 
-		else if(state == CONTROL)
-		{
+		else if(state == CONTROL) {
 			// dual proxy
 			posori_task->_sigma_force = sigma_force;
 			posori_task->_sigma_position = sigma_motion;
@@ -378,6 +368,7 @@ int main() {
 					posori_task->updateAngularMotionAxis(local_z);
 				}
 			}
+
 			else {
 				posori_task->setFullAngularMotionControl();
 			}
@@ -388,12 +379,10 @@ int main() {
 
 			Vector3d desired_force = k_vir * sigma_force * (robot_proxy - robot_position);
 			Vector3d desired_force_diff = desired_force - prev_desired_force;
-			if(desired_force_diff.norm() > max_force_diff)
-			{
+			if(desired_force_diff.norm() > max_force_diff) {
 				desired_force = prev_desired_force + desired_force_diff*max_force_diff/desired_force_diff.norm();
 			}
-			if(desired_force.norm() > max_force)
-			{
+			if(desired_force.norm() > max_force) {
 				desired_force *= max_force/desired_force.norm();
 			}
 
@@ -441,8 +430,7 @@ int main() {
 		measured_velocity_pfilter += pfilter_sensed_velocity_buffer.back();
 		measured_force_pfilter += pfilter_sensed_force_buffer.back();
 
-		if(pfilter_motion_control_buffer.size() > 1/freq_ratio_filter_control)
-		{
+		if(pfilter_motion_control_buffer.size() > 1/freq_ratio_filter_control) {
 			motion_control_pfilter -= pfilter_motion_control_buffer.front();
 			force_control_pfilter -= pfilter_force_control_buffer.front();
 			measured_velocity_pfilter -= pfilter_sensed_velocity_buffer.front();
@@ -455,17 +443,19 @@ int main() {
 		}
 
 		// update logger values
-		Vector3d ee_vel = Vector3d::Zero();
-		robot->linearVelocity(ee_vel, link_name, pos_in_link);
-
-		log_robot_ee_position = haptic_proxy;
-		log_robot_ee_velocity = ee_vel;
-		log_robot_proxy_position = robot_proxy;
-		log_joint_angles = robot->_q;
-		log_joint_velocities = robot->_dq;
-		log_joint_command_torques = command_torques;
-		log_sensed_force_moments = sensed_force_moment_world_frame;
-		log_desired_force = posori_task->_desired_force;
+		if (controller_counter % 10 == 0){
+			Vector3d ee_vel = Vector3d::Zero();
+			robot->linearVelocity(ee_vel, link_name, pos_in_link);
+			
+			log_robot_ee_position = haptic_proxy;
+			log_robot_ee_velocity = ee_vel;
+			log_robot_proxy_position = robot_proxy;
+			log_joint_angles = robot->_q;
+			log_joint_velocities = robot->_dq;
+			log_joint_command_torques = command_torques;
+			log_sensed_force_moments = sensed_force_moment_world_frame;
+			log_desired_force = posori_task->_desired_force;
+		}
 
 		controller_counter++;
 	}
@@ -491,10 +481,7 @@ int main() {
 
 
 
-
-void particle_filter()
-{
-
+void particle_filter() {
 	// start redis client for particles
 	auto redis_client_particles = RedisClient();
 	redis_client_particles.connect();
@@ -533,8 +520,7 @@ void particle_filter()
 	bool fTimerDidSleep = true;
 	double start_time = timer.elapsedTime(); //secs
 
-	while(runloop)
-	{
+	while(runloop) {
 		timer.waitForNextLoop();
 
 		pfilter->update(motion_control_pfilter, force_control_pfilter, measured_velocity_pfilter, measured_force_pfilter);
@@ -557,5 +543,3 @@ void particle_filter()
 	std::cout << "Particle Filter Loop updates   : " << timer.elapsedCycles() << "\n";
     std::cout << "Particle Filter Loop frequency : " << timer.elapsedCycles()/end_time << "Hz\n";
 }
-
-

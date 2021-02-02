@@ -119,8 +119,7 @@ void communication(int delay);
 int main(int argc, char* argv[]) {
 
 	int communication_delay = 0;
-	if(argc >= 2)
-	{
+	if(argc >= 2) {
 		communication_delay = stoi(argv[1]);
 	}
 
@@ -149,8 +148,7 @@ int main(int argc, char* argv[]) {
 
 	// haptic control
 	////Haptic teleoperation controller ////
-	if(redis_client_remote.get(CONTROLLER_RUNNING_KEY) != "1")
-	{
+	if(redis_client_remote.get(CONTROLLER_RUNNING_KEY) != "1") {
 		cout << "run the robot controller before the haptic controller" << endl;
 		return 0;
 	}
@@ -245,8 +243,7 @@ int main(int argc, char* argv[]) {
 	bool fTimerDidSleep = true;
 	double start_time = timer.elapsedTime(); //secs
 
-	while (runloop)
-	{
+	while (runloop) {
 		// wait for next scheduled loop
 		timer.waitForNextLoop();
 		current_time = timer.elapsedTime() - start_time;
@@ -258,13 +255,16 @@ int main(int argc, char* argv[]) {
 		gripper_state_prev = gripper_state;
 		gripper_state = teleop_task->gripper_state;
 
-		if(state == INIT)
-		{
+		if(state == INIT) {
   			// compute homing haptic device
   			teleop_task->HomingTask();
 
-			if(teleop_task->device_homed && gripper_state)
-			{
+			if(teleop_task->device_homed && gripper_state) {
+  			// cout << teleop_task->device_homed << endl;
+
+			// if(controller_counter > 3000 && gripper_state) {
+				// teleop_task->device_homed = true;
+
 				// teleop_task->setRobotCenter(haptic_proxy, robot_rotation_default);
 				teleop_task->setDeviceCenter(teleop_task->_current_position_device, teleop_task->_current_rotation_device);
 				device_rot_center = teleop_task->_current_rotation_device;
@@ -278,25 +278,17 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-		else if(state == CONTROL)
-		{
-
+		else if(state == CONTROL) {
 			// compute haptic commands
-			if(gripper_state) //Full control
-			{
-				if(!gripper_state_prev)
-				{
+			if(gripper_state) { // full control
+				if(!gripper_state_prev) {
 					device_rot_center = device_release_rot.transpose() * teleop_task->_current_rotation_device;
 					teleop_task->setDeviceCenter(device_pos_center, device_rot_center);
-				
 				}
 				teleop_task->computeHapticCommands6d(robot_proxy, robot_proxy_rot);
-
 			}
-			else //Only position control
-			{
-				if(gripper_state_prev)
-				{
+			else { // only position control
+				if(gripper_state_prev) {
 					device_release_rot = teleop_task->_current_rotation_device * device_rot_center.transpose();
 				}
 				teleop_task->computeHapticCommands3d(robot_proxy);
@@ -307,30 +299,29 @@ int main(int argc, char* argv[]) {
 
 			Vector3d desired_force = k_vir * delayed_sigma_force * (proxy_position_device_frame - device_position);
 			Vector3d desired_force_diff = desired_force - prev_desired_force;
-			if( desired_force_diff.norm() > max_force_diff )
-			{
+			if(desired_force_diff.norm() > max_force_diff) {
 				desired_force = prev_desired_force + max_force_diff * desired_force_diff/desired_force_diff.norm();
 			}
-			if(desired_force.norm() > max_force)
-			{
+			if(desired_force.norm() > max_force) {
 				desired_force *= max_force/desired_force.norm();
 			}
 
 			teleop_task->_commanded_force_device = desired_force - kv_haptic * delayed_sigma_force * teleop_task->_current_trans_velocity_device;
 
-			// 
+			// remember values 
 			prev_desired_force = desired_force;
-
 		}
 
 		// write control torques
 		redis_client_local.executeWriteCallback(0);
 
 		// update logger variables
-		log_haptic_position = teleop_task->_current_position_device;
-		log_haptic_velocity = teleop_task->_current_trans_velocity_device;
-		log_haptic_proxy = proxy_position_device_frame;
-		log_haptic_commanded_force = teleop_task->_commanded_force_device;
+		if(controller_counter % 10 == 0) {
+			log_haptic_position = teleop_task->_current_position_device;
+			log_haptic_velocity = teleop_task->_current_trans_velocity_device;
+			log_haptic_proxy = proxy_position_device_frame;
+			log_haptic_commanded_force = teleop_task->_commanded_force_device;			
+		}
 
 		controller_counter++;
 	}
@@ -348,15 +339,11 @@ int main(int argc, char* argv[]) {
 	std::cout << "Controller Loop run time  : " << end_time << " seconds\n";
 	std::cout << "Controller Loop updates   : " << timer.elapsedCycles() << "\n";
     std::cout << "Controller Loop frequency : " << timer.elapsedCycles()/end_time << "Hz\n";
-
-
 }
 
 
 
-
-void communication(int delay)
-{
+void communication(int delay) {
 	// prepare delay
 	const double communication_delay_ms = delay;
 
@@ -392,32 +379,26 @@ void communication(int delay)
 	unsigned long long communication_counter = 0;
 	const int communication_delay_ncycles = communication_delay_ms / 1000.0 * communication_freq;
 	
-	while(runloop)
-	{
+	while(runloop) {
 		timer.waitForNextLoop();
 
 		redis_client_remote.executeReadCallback(0);
 
-		if(communication_delay_ncycles == 0)
-		{
+		if(communication_delay_ncycles == 0) {
 			delayed_haptic_proxy = haptic_proxy;
 			delayed_robot_proxy = robot_proxy;
 			delayed_robot_proxy_rot = robot_proxy_rot;
 			delayed_sigma_force = sigma_force;
 			delayed_force_space_dimension = force_space_dimension;
-
 		}
-		else
-		{
-
+		else {
 			robot_proxy_buffer.push(robot_proxy);
 			robot_proxy_rot_buffer.push(robot_proxy_rot);
 			haptic_proxy_buffer.push(haptic_proxy);
 			sigma_force_buffer.push(sigma_force);
 			force_space_dimension_buffer.push(force_space_dimension);
 
-			if(communication_counter > communication_delay_ncycles)
-			{
+			if(communication_counter > communication_delay_ncycles) {
 				delayed_haptic_proxy = haptic_proxy_buffer.front();
 				delayed_robot_proxy = robot_proxy_buffer.front();
 				delayed_robot_proxy_rot = robot_proxy_rot_buffer.front();
@@ -432,7 +413,6 @@ void communication(int delay)
 
 				communication_counter--;
 			}
-
 		}
 
 		redis_client_remote.executeWriteCallback(0);
@@ -447,7 +427,4 @@ void communication(int delay)
 	std::cout << "Communication Loop run time  : " << end_time << " seconds\n";
 	std::cout << "Communication Loop updates   : " << timer.elapsedCycles() << "\n";
     std::cout << "Communication Loop frequency : " << timer.elapsedCycles()/end_time << "Hz\n";
-
-
-
 }
