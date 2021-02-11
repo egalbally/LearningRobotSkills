@@ -34,3 +34,7 @@
 # build and bin
 /build
 /bin
+
+# Recorded data
+*.csv
+

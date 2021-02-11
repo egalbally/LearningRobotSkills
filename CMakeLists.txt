@@ -5,8 +5,7 @@ SET(CMAKE_CXX_FLAGS "-std=c++11")
 SET(CMAKE_BUILD_TYPE "Release")
 
 # set common source
-set (HAPTIC_APPLICATIONS_COMMON_SOURCE
-	)
+set (HAPTIC_APPLICATIONS_COMMON_SOURCE)
 # include_directories(${PROJECT_SOURCE_DIR}/src)
 # include_directories(${PROJECT_SOURCE_DIR}/utils)
 
@@ -83,5 +82,11 @@ set(HAPTIC_APPLICATIONS_COMMON_LIBRARIES
 set (HAPTIC_APPLICATIONS_BINARY_DIR                  ${PROJECT_SOURCE_DIR}/bin)
 
 add_subdirectory(00-force_sensor_calibration)
-add_subdirectory(01-RemotePandaControl_robot)
-add_subdirectory(01-RemotePandaControl_haptic)
+add_subdirectory(01-dual_proxy_motion_haptic)
+add_subdirectory(01-dual_proxy_motion_robot)
+add_subdirectory(02-dual_proxy_motion_normal_force_haptic)
+add_subdirectory(02-dual_proxy_motion_normal_force_robot)
+add_subdirectory(03-dual_proxy_surface_alignment_haptic)
+add_subdirectory(03-dual_proxy_surface_alignment_robot)
+add_subdirectory(04-unified_motion_force)
+

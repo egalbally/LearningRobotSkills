@@ -3,7 +3,7 @@
 <world name="demo_world" gravity="0.0 0.0 0.0">
 <!-- <world name="demo_world" gravity="0.0 0.0 -9.81"> -->
 
-	<robot name="PANDA_RIGHT">
+	<robot name="panda">
 		<model dir="./resources" path="panda_arm.urdf" name="panda" />
 		<!-- <origin xyz="-0.06 0.57 0.0" rpy="0 0 -1.0864675" /> -->
 	</robot>

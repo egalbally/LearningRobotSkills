@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Operational Space Control</title>
+
+  <!-- Global and utility stylesheets -->
+  <link rel="stylesheet" href="./css/picnic.min.css" type="text/css">
+  <link rel="stylesheet" href="./css/range_input.css" type="text/css">
+  <link rel="stylesheet" href="./css/global_styles.css" type="text/css">
+  <link rel="stylesheet" href="./css/chosen.min.css" type="text/css">
+
+  <!-- External library includes -->
+  <script src="./js/library/jquery-3.3.1.min.js" type="text/javascript"></script>
+  <script src="./js/library/chosen.jquery.min.js" type="text/javascript"></script>
+  <script src="./js/library/plotly.min.js" type="text/javascript"></script>
+  <script src="./js/library/echarts.min.js" type="text/javascript"></script>
+  <script src="./js/library/socket.io.js" type="text/javascript"></script>
+
+  <!-- global execution scripts -->
+  <script type="module" src="./js/index.js"></script>
+
+  <!-- Example CSS goes here -->
+  <style>
+    /** Set viewable website to use CSS flexbox, oriented vertically  */
+    body {
+      color: #525252;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /** Margin for selecting which task e.g. joint or posori */
+    .primitive_selector {
+      margin: 0.5rem;
+      padding: 0em 2em;
+    }
+
+    /** Title container styling: center */
+    .title {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /** Title text styling */
+    .title h1 {
+      text-align: center;
+      display: inline-block;
+    }
+
+    /** Title image styling */
+    .title img {
+      display: inline-block;
+      height: 125px;
+    }
+
+    /** Main body styling: left side 3/5 space, right side 2/5 space */
+    .container {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 10px;
+      justify-content: space-around;
+      height: 80vh;
+    }
+
+    /** Black, rounded border for both left and right side spaces/containers */
+    .container-item {
+      border-style: solid;
+      border-radius: 1em;
+      padding: 1em;
+    }
+
+    /** Right container styling: use CSS grid to have the plot flexible size and the logger to have automatic/minimal sizing */
+    .right-container {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      gap: 10px;
+    }
+
+    /** Splits a container into two equal sized columns */
+    .grid-half {
+      display: flex;
+      justify-content: space-between;
+      height: 100%;
+      width: 100%;
+    }
+
+    /** Defines a grid-half column to take up 48% width. Remaining space is padding */
+    .grid-half .col {
+      width: 48%;
+    }
+
+
+    /** 
+     * The layout for the posori task. Split into 3 regions: the posori in the top left
+     * the gains in the top right, and the nullspace in the bottom row but spans
+     * the full width of the container. 
+     */
+    .posori-grid {
+      display: grid;
+      justify-content: space-between;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto;
+      grid-template-areas:
+        "posori gains"
+        "nullspace nullspace";
+      column-gap: 5%;
+    }
+
+    /** The CSS class for the "posori" string in grid-template-area */
+    .posori-grid .posori {
+      grid-area: posori;
+    }
+
+    /** The CSS class for the "gains" string in grid-template-area */
+    .posori-grid .gains {
+      grid-area: gains;
+    }
+
+    /** The CSS class for the "nullspace" string in grid-template-area */
+    .posori-grid .nullspace {
+      grid-area: nullspace;
+    }
+
+    /** Utility CSS class for centering text */
+    .center {
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Title text & image at the top -->
+  <div class="title">
+    <h1>Redundant Arm Example (Panda)</h1>
+    <img src="./kuka_iiwa.jpg" />
+  </div>
+
+  <!-- Main body/content  -->
+  <div class="container">
+    <!-- Left side container: task details -->
+    <div class="container-item center">
+      <!-- primitive selector: select between joint, posori, floating, and trajectory -->
+      <sai2-interfaces-select class="primitive_selector" currentPrimitiveKey="sai2::examples::primitive">
+        <!-- joint task -->
+        <sai2-interfaces-select-option name="Joint Task" key="primitive_joint_task" class="grid-half module">
+          <div class="col center">
+            <h2>Joint Positions</h2>
+            <sai2-interfaces-slider key="sai2::examples::desired_joint_position"
+              display='["Joint 1", "Joint 2", "Joint 3", "Joint 4", "Joint 5", "Joint 6", "Joint 7"]'
+              min="[-2.89, -1.76, -2.89, -3.07, -2.89, -0.01, -2.89]" max="[2.89, 1.76, 2.89, -0.07, 2.89, 3.75, 2.89]"
+              step="0.01">
+            </sai2-interfaces-slider>
+          </div>
+          <div class="col center">
+            <h2>Gains</h2>
+            <sai2-interfaces-toggle-group key="sai2::examples::use_isotropic_joint_gains" name="Use Isotropic Gains">
+              <!-- Isotropic gains enabled -->
+              <sai2-interfaces-toggle-group-enabled>
+                <sai2-interfaces-slider key="sai2::examples::kp_joint" display="Kp Joint" min="0" max="200" step="0.01">
+                </sai2-interfaces-slider>
+                <sai2-interfaces-slider key="sai2::examples::kv_joint" display="Kv Joint" min="0" max="35" step="0.01">
+                </sai2-interfaces-slider>
+              </sai2-interfaces-toggle-group-enabled>
+              <!-- Nonisotropic gains enabled -->
+              <sai2-interfaces-toggle-group-disabled>
+                <sai2-interfaces-slider key="sai2::examples::kp_nonisotropic_joint" display="Kp Joint" min="0" max="200"
+                  step="0.01">
+                </sai2-interfaces-slider>
+                <sai2-interfaces-toggle-group name="Use Unsafe Gains">
+                  <!-- Allow unsafe gains (gains < 0) -->
+                  <sai2-interfaces-toggle-group-enabled>
+                    <sai2-interfaces-slider key="sai2::examples::kv_nonisotropic_joint" display="Kv Joint" min="-5" max="35"
+                      step="0.01">
+                  </sai2-interfaces-toggle-group-enabled>
+                  <!-- Do not allow unsafe gains (gains < 0) -->
+                  <sai2-interfaces-toggle-group-disabled>
+                    <sai2-interfaces-slider key="sai2::examples::kv_nonisotropic_joint" display="Kv Joint" min="0" max="35"
+                      step="0.01">
+                  </sai2-interfaces-toggle-group-disabled>
+                </sai2-interfaces-toggle-group>
+                </sai2-interfaces-slider>
+              </sai2-interfaces-toggle-group-disabled>
+            </sai2-interfaces-toggle-group>
+            <!-- Joint interpolation settings  -->
+            <sai2-interfaces-accordion displayName="Use Interpolation" key="sai2::examples::joint_use_interpolation">
+              <sai2-interfaces-slider key="sai2::examples::joint_interpolation_max_vel" display="OTG Max Vel" min="0" max="3.14" step="0.01">
+              </sai2-interfaces-slider>
+              <sai2-interfaces-slider key="sai2::examples::joint_interpolation_max_accel" display="OTG Max Accel" min="0" max="6.28" step="0.01">
+              </sai2-interfaces-slider>
+              <sai2-interfaces-slider key="sai2::examples::joint_interpolation_max_jerk" display="OTG Max Jerk" min="0" max="15" step="0.01">
+              </sai2-interfaces-slider>
+            </sai2-interfaces-accordion><br>
+            <!--<sai2-interfaces-accordion displayName="Velocity Saturation"
+              key="sai2::examples::use_joint_velocity_saturation">
+              <sai2-interfaces-slider key="sai2::examples::joint_velocity_saturation"
+                display='["Joint 1", "Joint 2", "Joint 3", "Joint 4", "Joint 5", "Joint 6", "Joint 7"]' min="0.1"
+                max="1.57" step="0.01">
+              </sai2-interfaces-slider>
+            </sai2-interfaces-accordion>-->
+            <!-- Joint task dynamic decoupling -->
+            <sai2-interfaces-enum key="sai2::examples::joint_dynamic_decoupling" display="Dynamic Decoupling">
+              <option value="full">Full</option>
+              <option value="bounded_inertia_estimate">BIE</option>
+              <option value="none">None</option>
+            </sai2-interfaces-enum>
+          </div>
+        </sai2-interfaces-select-option>
+
+        <!-- posori task -->
+        <sai2-interfaces-select-option name="Unified Motion + Force Task" key="primitive_posori_task" class="posori-grid module">
+          <div class="posori center">
+            <h2>Desired Position</h2>
+            <sai2-interfaces-slider key="sai2::examples::desired_position" display='["X", "Y", "Z"]'
+              min="[-0.5,-0.5,0.3]" max="[0.5,0.5,0.8]" step="0.01">
+            </sai2-interfaces-slider>
+            <h2>Desired Relative Orientation <br>(XYZ Fixed Angles)</h2>
+            <sai2-interfaces-orientation key="sai2::examples::desired_orientation" refreshRate="1">
+            </sai2-interfaces-orientation>
+          </div>
+
+          <div class="gains center">
+            <h2>Gains</h2>
+            <sai2-interfaces-toggle-group key="sai2::examples::use_isotropic_pos_gains" name="Use Isotropic Gains">
+              <!-- Isotropic gains enabled -->
+              <sai2-interfaces-toggle-group-enabled>
+                <sai2-interfaces-slider key="sai2::examples::kp_pos" display="Kp Pos" min="0" max="400" step="0.01">
+                </sai2-interfaces-slider>
+                <sai2-interfaces-slider key="sai2::examples::kv_pos" display="Kv Pos" min="0" max="100" step="0.01">
+                </sai2-interfaces-slider>
+                <!--<sai2-interfaces-slider key="sai2::examples::ki_pos" display="Ki Pos" min="0" max="100" step="0.01">
+                </sai2-interfaces-slider>-->
+              </sai2-interfaces-toggle-group-enabled>
+              <!-- Nonisotropic gains enabled -->
+              <sai2-interfaces-toggle-group-disabled>
+                <sai2-interfaces-slider key="sai2::examples::kp_nonisotropic_pos" display="Kp Pos" min="0" max="400"
+                  step="0.01">
+                </sai2-interfaces-slider>
+                <sai2-interfaces-toggle-group name="Use Unsafe Gains">
+                  <!-- Allow unsafe gains (gains < 0 ) -->
+                  <sai2-interfaces-toggle-group-enabled>
+                    <sai2-interfaces-slider key="sai2::examples::kv_nonisotropic_pos" display="Kv Pos" min="-20"
+                      max="100" step="0.01">
+                    </sai2-interfaces-slider>
+                  </sai2-interfaces-toggle-group-enabled>
+                  <!-- Do not unsafe gains (gains < 0 ) -->
+                  <sai2-interfaces-toggle-group-disabled>
+                    <sai2-interfaces-slider key="sai2::examples::kv_nonisotropic_pos" display="Kv Pos" min="0" max="100"
+                      step="0.01">
+                    </sai2-interfaces-slider>
+                  </sai2-interfaces-toggle-group-disabled>
+                </sai2-interfaces-toggle-group>
+                <!--<sai2-interfaces-slider key="sai2::examples::ki_pos" display="Ki Pos" min="0" max="100" step="0.01">
+                </sai2-interfaces-slider>-->
+              </sai2-interfaces-toggle-group-disabled>
+            </sai2-interfaces-toggle-group>
+
+            <sai2-interfaces-slider key="sai2::examples::kp_ori" display="Kp Ori" min="0" max="100" step="0.01">
+            </sai2-interfaces-slider>
+            <sai2-interfaces-slider key="sai2::examples::kv_ori" display="Kv Ori" min="0" max="100" step="0.01">
+            </sai2-interfaces-slider>
+            <!--<sai2-interfaces-slider key="sai2::examples::ki_ori" display="Ki Ori" min="0" max="100" step="0.01">
+            </sai2-interfaces-slider>-->
+            <!-- Posori interpolation -->
+            <sai2-interfaces-accordion displayName="Use Interpolation" key="sai2::examples::posori_use_interpolation">
+              <sai2-interfaces-slider key="sai2::examples::posori_interpolation_max_linear_vel" display="OTG Max Linear Vel" min="0" max="1" step="0.01">
+              </sai2-interfaces-slider>
+              <sai2-interfaces-slider key="sai2::examples::posori_interpolation_max_linear_accel" display="OTG Max Linear Accel" min="0" max="2" step="0.01">
+              </sai2-interfaces-slider>
+              <sai2-interfaces-slider key="sai2::examples::posori_interpolation_max_linear_jerk" display="OTG Max Linear Jerk" min="0" max="9" step="0.01">
+              </sai2-interfaces-slider>
+              <sai2-interfaces-slider key="sai2::examples::posori_interpolation_max_angular_vel" display="OTG Max Angular Vel" min="0" max="3.14" step="0.01">
+              </sai2-interfaces-slider>
+              <sai2-interfaces-slider key="sai2::examples::posori_interpolation_max_angular_accel" display="OTG Max Angular Accel" min="0" max="6.28" step="0.01">
+              </sai2-interfaces-slider>
+              <sai2-interfaces-slider key="sai2::examples::posori_interpolation_max_angular_jerk" display="OTG Max Angular Jerk" min="0" max="15" step="0.01">
+              </sai2-interfaces-slider>
+            </sai2-interfaces-accordion><br>
+            <!-- PosOri velocity saturation -->
+            <sai2-interfaces-accordion displayName="Velocity Saturation"
+              key="sai2::examples::use_posori_velocity_saturation">
+              <sai2-interfaces-slider key="sai2::examples::posori_velocity_saturation"
+                display='["Linear Velocity", "Angular Velocity"]' min="[0,0]" max="[0.5,1.57]" step="0.01">
+              </sai2-interfaces-slider>
+            </sai2-interfaces-accordion>
+            <!-- PosOri dynamic decoupling -->
+            <sai2-interfaces-enum key="sai2::examples::posori_dynamic_decoupling" display="Dynamic Decoupling">
+              <option value="full">Full</option>
+              <option value="partial">Partial</option>
+              <option value="bounded_inertia_estimate">BIE</option>
+              <option value="none">None</option>
+            </sai2-interfaces-enum>
+          </div>
+          <!-- PosOri Nullspace Control (Joint Task) -->
+          <div class="nullspace">
+            <sai2-interfaces-toggle-group name="Show Nullspace">
+              <sai2-interfaces-toggle-group-enabled class="grid-half">
+                <div class="col center">
+                  <h2>Nullspace Joint Control</h2>
+                  <sai2-interfaces-slider key="sai2::examples::desired_joint_position"
+                    display='["Joint 1", "Joint 2", "Joint 3", "Joint 4", "Joint 5", "Joint 6", "Joint 7"]'
+                    min="[-2.89, -1.76, -2.89, -3.07, -2.89, -0.01, -2.89]" max="[2.89, 1.76, 2.89, -0.07, 2.89, 3.75, 2.89]"
+                    step="0.01">
+                  </sai2-interfaces-slider>
+                </div>
+                <div class="col center">
+                  <h2>Nullspace Gains</h2>
+                  <sai2-interfaces-slider key="sai2::examples::kp_joint" display="Kp Joint" min="0" max="200" step="0.01">
+                  </sai2-interfaces-slider>
+                  <sai2-interfaces-slider key="sai2::examples::kv_joint" display="Kv Joint" min="0" max="35" step="0.01">
+                  </sai2-interfaces-slider>
+                </div>
+              </sai2-interfaces-toggle-group-enabled>
+            </sai2-interfaces-toggle-group>
+          </div>
+        </sai2-interfaces-select-option>
+
+        <!-- Trajectory generation task -->
+        <sai2-interfaces-select-option name="Custom Trajectory" key="primitive_trajectory_task"
+          class="grid-half module">
+          <sai2-interfaces-trajectory-select xLim="[-0.5,0.5]" yLim="[-0.5,0.5]" zLim="[0.3,0.75]"
+            current_pos_key="sai2::examples::current_ee_pos" primitive_key="sai2::examples::primitive" ,
+            primitive_value="primitive_trajectory_task" , position_key="sai2::examples::desired_position" ,
+            velocity_key="sai2::examples::desired_velocity" style="flex: 1">
+          </sai2-interfaces-trajectory-select>
+        </sai2-interfaces-select-option>
+
+         <!-- floating task: drag the robot in simulation with right click, or on real hardware -->
+        <sai2-interfaces-select-option name="Floating" key="primitive_floating_task" class="grid-half module">
+          <h3>Move the robot with your hands!</h3>
+        </sai2-interfaces-select-option>
+      </sai2-interfaces-select>
+    </div>
+
+    <!-- Right side container: plot and logger -->
+    <div class="container-item right-container">
+      <div class="plot">
+        <h2 class="center">Plot</h2>
+        <sai2-interfaces-plot>
+        </sai2-interfaces-plot>
+      </div>
+      <div class="logger center">
+        <h2>Logger</h2>
+        <sai2-interfaces-logger></sai2-interfaces-logger>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

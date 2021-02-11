@@ -16,7 +16,7 @@ using namespace std;
 using namespace Eigen;
 
 const string robot_file = "./resources/panda_arm.urdf";
-const string robot_name = "PANDA";
+const string robot_name = "panda";
 
 const string bias_file_name = "../../00-force_sensor_calibration/calibration_files/sensor_bias.xml";
 

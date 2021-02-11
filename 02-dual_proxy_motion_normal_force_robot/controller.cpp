@@ -28,26 +28,26 @@ const string robot_file = "./resources/panda_arm.urdf";
 
 // redis keys:
 // robot local control loop
-string JOINT_ANGLES_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::q";
-string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::dq";
-string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::01-panda::simviz::actuators::tau_cmd";
+string JOINT_ANGLES_KEY = "sai2::HapticApplications::02-panda::simviz::sensors::q";
+string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::02-panda::simviz::sensors::dq";
+string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::02-panda::simviz::actuators::tau_cmd";
 
-string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::sensed_force";
+string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02-panda::simviz::sensors::sensed_force";
 
 string MASSMATRIX_KEY;
 string CORIOLIS_KEY;
 
 // dual proxy
-string ROBOT_PROXY_KEY = "sai2::HapticApplications::01::dual_proxy::robot_proxy";
-string ROBOT_PROXY_ROT_KEY = "sai2::HapticApplications::01::dual_proxy::robot_proxy_rot";
-string HAPTIC_PROXY_KEY = "sai2::HapticApplications::01::dual_proxy::haptic_proxy";
-string FORCE_SPACE_DIMENSION_KEY = "sai2::HapticApplications::01::dual_proxy::force_space_dimension";
-string SIGMA_FORCE_KEY = "sai2::HapticApplications::01::dual_proxy::sigma_force";
-string ROBOT_DEFAULT_ROT_KEY = "sai2::HapticApplications::01::dual_proxy::robot_default_rot";
-string ROBOT_DEFAULT_POS_KEY = "sai2::HapticApplications::01::dual_proxy::robot_default_pos";
+string ROBOT_PROXY_KEY = "sai2::HapticApplications::02::dual_proxy::robot_proxy";
+string ROBOT_PROXY_ROT_KEY = "sai2::HapticApplications::02::dual_proxy::robot_proxy_rot";
+string HAPTIC_PROXY_KEY = "sai2::HapticApplications::02::dual_proxy::haptic_proxy";
+string FORCE_SPACE_DIMENSION_KEY = "sai2::HapticApplications::02::dual_proxy::force_space_dimension";
+string SIGMA_FORCE_KEY = "sai2::HapticApplications::02::dual_proxy::sigma_force";
+string ROBOT_DEFAULT_ROT_KEY = "sai2::HapticApplications::02::dual_proxy::robot_default_rot";
+string ROBOT_DEFAULT_POS_KEY = "sai2::HapticApplications::02::dual_proxy::robot_default_pos";
 
-string HAPTIC_DEVICE_READY_KEY = "sai2::HapticApplications::01::dual_proxy::haptic_device_ready";
-string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::01::dual_proxy::controller_running";
+string HAPTIC_DEVICE_READY_KEY = "sai2::HapticApplications::02::dual_proxy::haptic_device_ready";
+string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::02::dual_proxy::controller_running";
 
 
 RedisClient redis_client;
@@ -74,10 +74,14 @@ const double control_loop_freq = 1000.0;
 const double pfilter_freq = 50.0;
 const double freq_ratio_filter_control = pfilter_freq / control_loop_freq;
 
-// Set sensor frame transform in end-effector frame
+// set control link and point for posori task
+const string link_name = "end_effector";
+// const Vector3d pos_in_link = Vector3d(0.0,0.0,0.12);
+const Vector3d pos_in_link = Vector3d(0.0,0.0,0.19);
+
+// set sensor frame transform in end-effector frame
 Affine3d sensor_transform_in_link = Affine3d::Identity();
 const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.0);
-const Vector3d pos_in_link = Vector3d(0.0,0.0,0.12);
 
 // particle filter loop
 void particle_filter();
@@ -106,9 +110,9 @@ int main() {
 	signal(SIGINT, &sighandler);
 
 	// load robots
-	Affine3d T_workd_robot = Affine3d::Identity();
-	T_workd_robot.translation() = Vector3d(0, 0, 0);
-	auto robot = new Sai2Model::Sai2Model(robot_file, false, T_workd_robot);
+	Affine3d T_world_robot = Affine3d::Identity();
+	T_world_robot.translation() = Vector3d(0, 0, 0);
+	auto robot = new Sai2Model::Sai2Model(robot_file, false, T_world_robot);
 
 	robot->_q = redis_client.getEigenMatrixJSON(JOINT_ANGLES_KEY);
 	robot->updateModel();
@@ -134,10 +138,9 @@ int main() {
 	q_init *= M_PI/180.0;
 	joint_task->_desired_position = q_init;
 
-
 	// posori task
-	const string link_name = "end_effector";
-	const Vector3d pos_in_link = Vector3d(0,0,0);
+	// const string link_name = "end_effector";
+	// const Vector3d pos_in_link = Vector3d(0, 0, 0.12);
 	auto posori_task = new Sai2Primitives::PosOriTask(robot, link_name, pos_in_link);
 	Vector3d x_init = posori_task->_current_position;
 	Matrix3d R_init = posori_task->_current_orientation;
@@ -191,9 +194,9 @@ int main() {
 	bool first_loop = true;
 
 	if(!flag_simulation) {
-		force_bias << 1.50146,   -8.19901,  -0.695169,  -0.987652,   0.290632, -0.0453239;
+		force_bias << 1.50246,   -8.19902,  -0.695169,  -0.987652,   0.290632, -0.0453239;
 		tool_mass = 0.33;
-		tool_com = Vector3d(-0.00492734, -0.00195005,   0.0859595);
+		tool_com = Vector3d(-0.00492734, -0.00295005,   0.0859595);
 	}
 
 	// remove inertial forces from tool
@@ -246,9 +249,9 @@ int main() {
 
 
 	// setup data logging
-	string folder = "../../01-RemotePandaControl_robot/data_logging/data/";
+	string folder = "../../02-dual_proxy_motion_normal_force_robot/data_logging/data/";
 	string filename = "data";
-	auto logger = new Logging::Logger(100, folder + filename);
+	auto logger = new Logging::Logger(1000, folder + filename);
 	
 	Vector3d log_robot_ee_position = x_init;
 	Vector3d log_robot_ee_velocity = Vector3d::Zero();
@@ -257,7 +260,7 @@ int main() {
 	VectorXd log_joint_velocities = robot->_dq;
 	VectorXd log_joint_command_torques = command_torques;
 	VectorXd log_sensed_force_moments = VectorXd::Zero(6);
-	Vector3d log_desired_force = Vector3d::Zero();
+    Vector3d log_desired_force = Vector3d::Zero();
 
 	logger->addVectorToLog(&log_robot_ee_position, "robot_ee_position");
 	logger->addVectorToLog(&log_robot_ee_velocity, "robot_ee_velocity");
@@ -266,7 +269,7 @@ int main() {
 	logger->addVectorToLog(&log_joint_velocities, "joint_velocities");
 	logger->addVectorToLog(&log_joint_command_torques, "joint_command_torques");
 	logger->addVectorToLog(&log_sensed_force_moments, "sensed_forces_moments");
-	logger->addVectorToLog(&log_desired_force, "desired_force");
+    logger->addVectorToLog(&log_desired_force, "desired_force");
 
 	logger->start();
 
@@ -357,8 +360,8 @@ int main() {
 			posori_task->_sigma_force = sigma_force;
 			posori_task->_sigma_position = sigma_motion;
 
-			if(force_space_dimension >= 1) {
-
+			// TODO: do not update desired orientation when in contact
+            if(force_space_dimension >= 1) {
 				Vector3d local_z = posori_task->_current_orientation.col(2);
 
 				if(prev_force_space_dimension == 0) {
@@ -368,9 +371,8 @@ int main() {
 					posori_task->updateAngularMotionAxis(local_z);
 				}
 			}
-
 			else {
-				posori_task->setFullAngularMotionControl();
+                posori_task->setFullAngularMotionControl();
 			}
 
 			Vector3d robot_position = posori_task->_current_position;
@@ -389,7 +391,7 @@ int main() {
 			// control
 			posori_task->_desired_position = motion_proxy;
 			posori_task->_desired_force = desired_force;
-			posori_task->_desired_orientation = robot_proxy_rot;
+            posori_task->_desired_orientation = robot_proxy_rot;
 
 			try	{
 				posori_task->computeTorques(posori_task_torques);
@@ -443,20 +445,18 @@ int main() {
 		}
 
 		// update logger values
-		if (controller_counter % 10 == 0){
-			Vector3d ee_vel = Vector3d::Zero();
-			robot->linearVelocity(ee_vel, link_name, pos_in_link);
-			
-			log_robot_ee_position = haptic_proxy;
-			log_robot_ee_velocity = ee_vel;
-			log_robot_proxy_position = robot_proxy;
-			log_joint_angles = robot->_q;
-			log_joint_velocities = robot->_dq;
-			log_joint_command_torques = command_torques;
-			log_sensed_force_moments = sensed_force_moment_world_frame;
-			log_desired_force = posori_task->_desired_force;
-		}
-
+		Vector3d ee_vel = Vector3d::Zero();
+		robot->linearVelocity(ee_vel, link_name, pos_in_link);
+		
+		log_robot_ee_position = haptic_proxy;
+		log_robot_ee_velocity = ee_vel;
+		log_robot_proxy_position = robot_proxy;
+		log_joint_angles = robot->_q;
+		log_joint_velocities = robot->_dq;
+		log_joint_command_torques = command_torques;
+		log_sensed_force_moments = sensed_force_moment_world_frame;
+        log_desired_force = posori_task->_desired_force;
+	
 		controller_counter++;
 	}
 
@@ -499,7 +499,7 @@ void particle_filter() {
 
 	pfilter->_F_low = 2.0;
 	pfilter->_F_high = 6.0;
-	pfilter->_v_low = 0.01;
+	pfilter->_v_low = 0.02;
 	pfilter->_v_high = 0.07;
 
 	pfilter->_F_low_add = 5.0;

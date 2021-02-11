@@ -119,16 +119,19 @@ void communication(int delay);
 int main(int argc, char* argv[]) {
 
 	int communication_delay = 0;
+	int device_z_rot = 0;
 	if(argc >= 2) {
 		communication_delay = stoi(argv[1]);
+		if(argc == 3) {
+			device_z_rot = stoi(argv[2]); // angle to rotate device frame about Z IN DEGREES
+		}
 	}
 
 	// start redis clients
 	redis_client_local = RedisClient();
 	redis_client_local.connect();
 
-	string remote_ip = "127.0.0.1";      // local
-	// string remote_ip = "10.0.0.231";     // borns
+    string remote_ip = "127.0.0.1";      // local
 	// string remote_ip = "10.8.0.1";       // shenhao
 	int remote_port = 6379;
 	redis_client_remote = RedisClient();
@@ -147,14 +150,15 @@ int main(int argc, char* argv[]) {
 	Vector3d prev_desired_force = Vector3d::Zero();
 
 	// haptic control
-	////Haptic teleoperation controller ////
+	//// Haptic teleoperation controller ////
 	if(redis_client_remote.get(CONTROLLER_RUNNING_KEY) != "1") {
-		cout << "run the robot controller before the haptic controller" << endl;
+		std::cout << "run the robot controller before the haptic controller" << endl;
 		return 0;
 	}
 	Vector3d robot_workspace_center = redis_client_remote.getEigenMatrixJSON(ROBOT_DEFAULT_POS_KEY);
 	Matrix3d robot_rotation_default = redis_client_remote.getEigenMatrixJSON(ROBOT_DEFAULT_ROT_KEY);
 	Matrix3d R_device_robot = Matrix3d::Identity();
+	R_device_robot *= AngleAxisd(device_z_rot * M_PI/180.0, Vector3d::UnitZ()).toRotationMatrix(); // rotate frame by input Z angle
 	Matrix3d device_rot_center = Matrix3d::Identity();
 	Vector3d device_pos_center = Vector3d::Zero();
 	Matrix3d device_release_rot = Matrix3d::Identity();
@@ -186,7 +190,8 @@ int main(int argc, char* argv[]) {
 	teleop_task->_max_force_device = _max_force_device0[0];
 	teleop_task->_max_torque_device = _max_force_device0[1];
 
-	double kv_haptic = 0.9 * _max_damping_device0[0];
+	// double kv_haptic = 0.9 * _max_damping_device0[0];
+	double kv_haptic = 0.5 * _max_damping_device0[0];
 
 	Vector3d proxy_position_device_frame = Vector3d::Zero();
 
@@ -211,9 +216,9 @@ int main(int argc, char* argv[]) {
 	redis_client_local.addDoubleToWriteCallback(0, DEVICE_COMMANDED_GRIPPER_FORCE_KEYS[0], teleop_task->_commanded_gripper_force_device);
 
 	// setup data logging
-	string folder = "../../01-RemotePandaControl_haptic/data_logging/data/";
+	string folder = "../../01-dual_proxy_motion_haptic/data_logging/data/";
 	string filename = "data";
-	auto logger = new Logging::Logger(100, folder + filename);
+	auto logger = new Logging::Logger(10000, folder + filename);
 	
 	Vector3d log_haptic_position = Vector3d::Zero();
 	Vector3d log_haptic_velocity = Vector3d::Zero();
@@ -316,13 +321,11 @@ int main(int argc, char* argv[]) {
 		redis_client_local.executeWriteCallback(0);
 
 		// update logger variables
-		if(controller_counter % 10 == 0) {
-			log_haptic_position = teleop_task->_current_position_device;
-			log_haptic_velocity = teleop_task->_current_trans_velocity_device;
-			log_haptic_proxy = proxy_position_device_frame;
-			log_haptic_commanded_force = teleop_task->_commanded_force_device;			
-		}
-
+		log_haptic_position = teleop_task->_current_position_device;
+		log_haptic_velocity = teleop_task->_current_trans_velocity_device;
+		log_haptic_proxy = proxy_position_device_frame;
+		log_haptic_commanded_force = teleop_task->_commanded_force_device;			
+		
 		controller_counter++;
 	}
 

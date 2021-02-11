@@ -20,17 +20,20 @@ robot_proxy = file[:,7:10]
 joint_angles = file[:,10:17]
 joint_velocities = file[:,17:24]
 joint_command_torques = file[:,24:31]
-
+sensed_force_moments = file[:,31:37]
+desired_force = file[:,37:]
 
 plt.figure(0)
-plt.plot(time, robot_ee_pos)
-plt.plot(time, robot_proxy, '--')
+# plt.plot(time, robot_ee_pos)
+# plt.plot(time, robot_proxy, '--')
+plt.plot(sensed_force_moments)
 plt.title("Robot position vs Proxy position", FontSize=20)
 plt.xlabel("Time (s)", FontSize=16)
 plt.legend(['x', 'y', 'z'])
 
 plt.figure(1)
-plt.plot(time, robot_ee_vel)
+# plt.plot(time, robot_ee_vel)
+plt.plot(joint_command_torques[:,5:])
 plt.title("Robot velocity", FontSize=20)
 plt.xlabel("Time (s)", FontSize=16)
 plt.legend(['x', 'y', 'z'])
