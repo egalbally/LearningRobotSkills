@@ -203,7 +203,8 @@ void update_joint_task(Sai2Primitives::JointTask *joint_task)
     if (joint_dynamic_decoupling_mode == "full")
         joint_task->setDynamicDecouplingFull();
     else if (joint_dynamic_decoupling_mode == "bounded_inertia_estimate")
-        joint_task->setDynamicDecouplingBIE();
+        joint_task->setDynamicDecouplingInertiaSaturation();
+        // joint_task->setDynamicDecouplingBIE();
     else if (joint_dynamic_decoupling_mode == "none")
         joint_task->setDynamicDecouplingNone();
 }
@@ -436,7 +437,8 @@ void update_posori_task(Sai2Primitives::PosOriTask *posori_task)
     else if (posori_dynamic_decoupling_mode == "partial")
         posori_task->setDynamicDecouplingPartial();
     else if (posori_dynamic_decoupling_mode == "bounded_inertia_estimate")
-        posori_task->setDynamicDecouplingBIE();
+        posori_task->setDynamicDecouplingInertiaSaturation();
+        // posori_task->setDynamicDecouplingBIE();
     else if (posori_dynamic_decoupling_mode == "none")
         posori_task->setDynamicDecouplingNone();
 }
