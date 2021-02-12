@@ -259,7 +259,7 @@ int main() {
 	// setup data logging
 	string folder = "../../03-dual_proxy_surface_alignment_robot/data_logging/data/";
 	string filename = "data";
-	auto logger = new Logging::Logger(1000, folder + filename);
+    auto logger = new Logging::Logger(100000, folder + filename);
 	
 	Vector3d log_robot_ee_position = x_init;
 	Vector3d log_robot_ee_velocity = Vector3d::Zero();

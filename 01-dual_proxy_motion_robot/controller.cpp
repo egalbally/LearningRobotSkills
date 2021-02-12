@@ -252,7 +252,7 @@ int main() {
 	// setup data logging
     string folder = "../../04-dual_proxy_motion_robot/data_logging/data/";
 	string filename = "data";
-	auto logger = new Logging::Logger(1000, folder + filename);
+    auto logger = new Logging::Logger(100000, folder + filename);
 	
 	Vector3d log_robot_ee_position = x_init;
 	Vector3d log_robot_ee_velocity = Vector3d::Zero();
@@ -361,23 +361,7 @@ int main() {
 			posori_task->_sigma_force = sigma_force;
 			posori_task->_sigma_position = sigma_motion;
 
-			// TODO: do not update desired orientation when in contact
-            if(force_space_dimension >= 1) {
-				Vector3d local_z = posori_task->_current_orientation.col(2);
-
-				if(prev_force_space_dimension == 0) {
-					posori_task->setAngularMotionAxis(local_z);
-				}
-				else {
-					posori_task->updateAngularMotionAxis(local_z);
-				}
-			}
-			else {
-                posori_task->setFullAngularMotionControl();
-			}
-
 			Vector3d robot_position = posori_task->_current_position;
-
 			Vector3d motion_proxy = robot_position + sigma_motion * (robot_proxy - robot_position);
 
 			Vector3d desired_force = k_vir * sigma_force * (robot_proxy - robot_position);
@@ -525,7 +509,7 @@ void particle_filter() {
 		timer.waitForNextLoop();
 
 		pfilter->update(motion_control_pfilter, force_control_pfilter, measured_velocity_pfilter, measured_force_pfilter);
-		sigma_force = pfilter->getSigmaForce();
+//		sigma_force = pfilter->getSigmaForce(); // disable to only control motion
 		sigma_motion = Matrix3d::Identity() - sigma_force;
 		force_space_dimension = pfilter->_force_space_dimension;
 

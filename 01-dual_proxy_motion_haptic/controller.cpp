@@ -218,7 +218,7 @@ int main(int argc, char* argv[]) {
 	// setup data logging
 	string folder = "../../01-dual_proxy_motion_haptic/data_logging/data/";
 	string filename = "data";
-	auto logger = new Logging::Logger(10000, folder + filename);
+    auto logger = new Logging::Logger(100000, folder + filename);
 	
 	Vector3d log_haptic_position = Vector3d::Zero();
 	Vector3d log_haptic_velocity = Vector3d::Zero();

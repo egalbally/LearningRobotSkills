@@ -251,7 +251,7 @@ int main() {
 	// setup data logging
 	string folder = "../../02-dual_proxy_motion_normal_force_robot/data_logging/data/";
 	string filename = "data";
-	auto logger = new Logging::Logger(1000, folder + filename);
+    auto logger = new Logging::Logger(100000, folder + filename);
 	
 	Vector3d log_robot_ee_position = x_init;
 	Vector3d log_robot_ee_velocity = Vector3d::Zero();
@@ -360,23 +360,7 @@ int main() {
 			posori_task->_sigma_force = sigma_force;
 			posori_task->_sigma_position = sigma_motion;
 
-			// TODO: do not update desired orientation when in contact
-            if(force_space_dimension >= 1) {
-				Vector3d local_z = posori_task->_current_orientation.col(2);
-
-				if(prev_force_space_dimension == 0) {
-					posori_task->setAngularMotionAxis(local_z);
-				}
-				else {
-					posori_task->updateAngularMotionAxis(local_z);
-				}
-			}
-			else {
-                posori_task->setFullAngularMotionControl();
-			}
-
 			Vector3d robot_position = posori_task->_current_position;
-
 			Vector3d motion_proxy = robot_position + sigma_motion * (robot_proxy - robot_position);
 
 			Vector3d desired_force = k_vir * sigma_force * (robot_proxy - robot_position);
@@ -409,14 +393,12 @@ int main() {
 			command_torques = posori_task_torques + joint_task_torques + coriolis;
 
 			// remember values
-			prev_desired_force = desired_force;
-			prev_force_space_dimension = force_space_dimension;
+            prev_desired_force = desired_force;
 		}
 
 		// write control torques and dual proxy variables
 		robot->position(haptic_proxy, link_name, pos_in_link);
 		redis_client.executeWriteCallback(0);
-
 
 		// particle filter
 		pfilter_motion_control_buffer.push(sigma_motion * (robot_proxy - posori_task->_current_position) * freq_ratio_filter_control);
