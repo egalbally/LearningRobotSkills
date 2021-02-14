@@ -28,11 +28,11 @@ const string robot_file = "./resources/panda_arm.urdf";
 
 // redis keys:
 // robot local control loop
-string JOINT_ANGLES_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::q";
-string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::dq";
-string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::01-panda::simviz::actuators::tau_cmd";
+string JOINT_ANGLES_KEY = "sai2::HapticApplications::01::simviz::sensors::q";
+string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::01::simviz::sensors::dq";
+string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::01::simviz::actuators::tau_cmd";
 
-string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::sensed_force";
+string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::01::simviz::sensors::sensed_force";
 
 string MASSMATRIX_KEY;
 string CORIOLIS_KEY;
@@ -76,8 +76,7 @@ const double freq_ratio_filter_control = pfilter_freq / control_loop_freq;
 
 // set control link and point for posori task
 const string link_name = "end_effector";
-// const Vector3d pos_in_link = Vector3d(0.0,0.0,0.12);
-const Vector3d pos_in_link = Vector3d(0.0,0.0,0.19);
+ const Vector3d pos_in_link = Vector3d(0.0,0.0,0.035);
 
 // set sensor frame transform in end-effector frame
 Affine3d sensor_transform_in_link = Affine3d::Identity();

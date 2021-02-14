@@ -32,11 +32,11 @@ const string link_name = "end_effector"; //robot end-effector
 
 
 // redis keys:
-string JOINT_ANGLES_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::q";
-string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::dq";
-string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::01-panda::simviz::actuators::tau_cmd";
+string JOINT_ANGLES_KEY = "sai2::HapticApplications::01::simviz::sensors::q";
+string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::01::simviz::sensors::dq";
+string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::01::simviz::actuators::tau_cmd";
 
-string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::01-panda::simviz::sensors::sensed_force";
+string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::01::simviz::sensors::sensed_force";
 
 RedisClient redis_client;
 

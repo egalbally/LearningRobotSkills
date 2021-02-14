@@ -28,11 +28,11 @@ const string robot_file = "./resources/panda_arm.urdf";
 
 // redis keys:
 // robot local control loop
-string JOINT_ANGLES_KEY = "sai2::HapticApplications::02-panda::simviz::sensors::q";
-string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::02-panda::simviz::sensors::dq";
-string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::02-panda::simviz::actuators::tau_cmd";
+string JOINT_ANGLES_KEY = "sai2::HapticApplications::02::simviz::sensors::q";
+string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::02::simviz::sensors::dq";
+string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::02::simviz::actuators::tau_cmd";
 
-string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02-panda::simviz::sensors::sensed_force";
+string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02::simviz::sensors::sensed_force";
 
 string MASSMATRIX_KEY;
 string CORIOLIS_KEY;
@@ -76,12 +76,11 @@ const double freq_ratio_filter_control = pfilter_freq / control_loop_freq;
 
 // set control link and point for posori task
 const string link_name = "end_effector";
-// const Vector3d pos_in_link = Vector3d(0.0,0.0,0.12);
-const Vector3d pos_in_link = Vector3d(0.0,0.0,0.19);
+const Vector3d pos_in_link = Vector3d(0.0,0.0,0.035);
 
 // set sensor frame transform in end-effector frame
 Affine3d sensor_transform_in_link = Affine3d::Identity();
-const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.0);
+const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.034);
 
 // particle filter loop
 void particle_filter();
@@ -133,10 +132,10 @@ int main() {
 	joint_task->_kv = 25.0;
 	joint_task->_ki = 50.0;
 
-	VectorXd q_init(dof);
-	q_init << 0, -30, 0, -130, 0, 100, 0;
-	q_init *= M_PI/180.0;
-	joint_task->_desired_position = q_init;
+    // VectorXd q_init(dof);
+    // q_init << 0, -30, 0, -130, 0, 100, 0;
+    // q_init *= M_PI/180.0;
+    joint_task->_desired_position = robot->_q; // use current robot config as init config
 
 	// posori task
 	// const string link_name = "end_effector";
@@ -148,8 +147,8 @@ int main() {
 	redis_client.setEigenMatrixJSON(ROBOT_PROXY_ROT_KEY, R_init);
 	redis_client.setEigenMatrixJSON(HAPTIC_PROXY_KEY, x_init);
 	// compute expected default rotation to send to haptic
-	robot->_q = q_init;
-	robot->updateModel();
+    // robot->_q = q_init;
+    // robot->updateModel();
 	Matrix3d R_default = Matrix3d::Identity();
 	Vector3d pos_default = Vector3d::Zero();
 	robot->rotation(R_default, link_name);
@@ -178,7 +177,7 @@ int main() {
 
 	// force sensing
 	Matrix3d R_link_sensor = Matrix3d::Identity();
-	R_link_sensor = AngleAxisd(-3.0/4.0*M_PI, Vector3d::UnitZ()).toRotationMatrix();
+    R_link_sensor = AngleAxisd(-3.0/4.0*M_PI, Vector3d::UnitZ()).toRotationMatrix(); // for borns sensor connection
 
 	sensor_transform_in_link.translation() = sensor_pos_in_link;
 	sensor_transform_in_link.linear() = R_link_sensor;

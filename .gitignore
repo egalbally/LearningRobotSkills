@@ -38,3 +38,6 @@
 # Recorded data
 *.csv
 
+# User files
+*.user
+

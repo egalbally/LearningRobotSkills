@@ -30,11 +30,11 @@ const string camera_name = "camera";
 const string link_name = "end_effector"; //robot end-effector
 
 // redis keys:
-string JOINT_ANGLES_KEY = "sai2::HapticApplications::03-panda::simviz::sensors::q";
-string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::03-panda::simviz::sensors::dq";
-string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::03-panda::simviz::actuators::tau_cmd";
+string JOINT_ANGLES_KEY = "sai2::HapticApplications::03::simviz::sensors::q";
+string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::03::simviz::sensors::dq";
+string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::03::simviz::actuators::tau_cmd";
 
-string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::03-panda::simviz::sensors::sensed_force";
+string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::03::simviz::sensors::sensed_force";
 
 RedisClient redis_client;
 
@@ -97,7 +97,10 @@ int main() {
 	// Add force sensor to the end-effector
 	Affine3d sensor_transform_in_link = Affine3d::Identity();
 	const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.0);
+    Matrix3d R_link_sensor = Matrix3d::Identity();
+    R_link_sensor = AngleAxisd(-3.0/4.0*M_PI, Vector3d::UnitZ()).toRotationMatrix(); // for borns sensor connection
     sensor_transform_in_link.translation() = sensor_pos_in_link;
+    sensor_transform_in_link.linear() = R_link_sensor;
 	auto force_sensor = new ForceSensorSim(robot_name, link_name, sensor_transform_in_link, robot);
 	force_sensor->enableFilter(0.01);
 
@@ -240,10 +243,17 @@ int main() {
 
 //------------------------------------------------------------------------------
 void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, ForceSensorSim* force_sensor) {
-
+    // init control variables
 	int dof = robot->dof();
 	VectorXd command_torques = VectorXd::Zero(dof);
 	redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
+
+    // initialize robot configuration
+    VectorXd q_init = VectorXd::Zero(dof);
+    q_init << 0, -30, 0, -130, 0, 100, 0; // config from old controller
+    // q_init << -25, -45, 0, -135, 45, 80, 0; // config from urdf
+    q_init *= M_PI / 180.0;
+    sim->setJointPositions(robot_name, q_init); // uncomment to set initial config
 
 	// sensed force
 	Vector3d sensed_force = Vector3d::Zero();
