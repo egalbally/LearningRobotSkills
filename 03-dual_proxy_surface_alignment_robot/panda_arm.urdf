@@ -145,7 +145,7 @@
       </inertial>
       <visual>
         <geometry>
-          <cylinder radius="0.04" length="0.09"/>
+          <cylinder radius="0.04" length="0.153"/>
         </geometry>
         <material name="material_ee">
             <color rgba="0.5 0.3 0.2 1.0" />
@@ -163,7 +163,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <cylinder radius="0.04" length="0.09"/>
+          <cylinder radius="0.04" length="0.153"/>
         </geometry>
       </collision>
     </link>

@@ -76,7 +76,7 @@ const double freq_ratio_filter_control = pfilter_freq / control_loop_freq;
 
 // set control link and point for posori task
 const string link_name = "end_effector";
-const Vector3d pos_in_link = Vector3d(0.0,0.0,0.155); // TODO: get measurement from borns
+const Vector3d pos_in_link = Vector3d(0.0,0.0,0.153); // TODO: get measurement from borns
 
 // set sensor frame transform in end-effector frame
 Affine3d sensor_transform_in_link = Affine3d::Identity();
@@ -135,6 +135,7 @@ int main() {
     // VectorXd q_init(dof);
     // q_init << 0, -30, 0, -130, 0, 100, 0;
     // q_init *= M_PI/180.0;
+    // q_init << 0.943667,-0.76595,-2.18203,-1.72349,-0.701489,2.13662,-0.0375883;
     joint_task->_desired_position = robot->_q; // use current robot config as init config
 
 	// posori task

@@ -98,9 +98,11 @@ int main() {
 
 	// Add force sensor to the end-effector
 	Affine3d sensor_transform_in_link = Affine3d::Identity();
-	const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.0);
-	const Vector3d pos_in_link = Vector3d(0.0,0.0,0.0);
+    const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.034);
+    Matrix3d R_link_sensor = Matrix3d::Identity();
+    R_link_sensor = AngleAxisd(-3.0/4.0*M_PI, Vector3d::UnitZ()).toRotationMatrix(); // for borns sensor connection
 	sensor_transform_in_link.translation() = sensor_pos_in_link;
+	sensor_transform_in_link.linear() = R_link_sensor;
 	auto force_sensor = new ForceSensorSim(robot_name, link_name, sensor_transform_in_link, robot);
 	force_sensor->enableFilter(0.01);
 
