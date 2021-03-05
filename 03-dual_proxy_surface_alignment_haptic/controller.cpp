@@ -157,12 +157,12 @@ int main(int argc, char* argv[]) {
 	}
 	Vector3d robot_workspace_center = redis_client_remote.getEigenMatrixJSON(ROBOT_DEFAULT_POS_KEY);
 	Matrix3d robot_rotation_default = redis_client_remote.getEigenMatrixJSON(ROBOT_DEFAULT_ROT_KEY);
-	Matrix3d R_device_robot = Matrix3d::Identity();
-	R_device_robot *= AngleAxisd(device_z_rot * M_PI/180.0, Vector3d::UnitZ()).toRotationMatrix(); // rotate frame by input Z angle
-	Matrix3d device_rot_center = Matrix3d::Identity();
+    Matrix3d R_device_robot = Matrix3d::Identity();
+    R_device_robot *= AngleAxisd(-device_z_rot * M_PI/180.0, Vector3d::UnitZ()).toRotationMatrix(); // rotate frame by input Z angle
+    Matrix3d device_rot_center = Matrix3d::Identity();
 	Vector3d device_pos_center = Vector3d::Zero();
 	Matrix3d device_release_rot = Matrix3d::Identity();
-	auto teleop_task = new Sai2Primitives::HapticController(robot_workspace_center, robot_rotation_default, R_device_robot);
+    auto teleop_task = new Sai2Primitives::HapticController(robot_workspace_center, robot_rotation_default, R_device_robot);
 	teleop_task->_send_haptic_feedback = false;
 
 	//User switch states
@@ -287,7 +287,7 @@ int main(int argc, char* argv[]) {
 			// compute haptic commands
 			if(gripper_state) { // full control
 				if(!gripper_state_prev) {
-					device_rot_center = device_release_rot.transpose() * teleop_task->_current_rotation_device;
+                    device_rot_center = device_release_rot.transpose() * teleop_task->_current_rotation_device;
 					teleop_task->setDeviceCenter(device_pos_center, device_rot_center);
 				}
 				teleop_task->computeHapticCommands6d(robot_proxy, robot_proxy_rot);

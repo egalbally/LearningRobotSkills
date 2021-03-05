@@ -157,10 +157,13 @@ int main() {
 	redis_client.setEigenMatrixJSON(ROBOT_DEFAULT_ROT_KEY, R_default);
 	redis_client.setEigenMatrixJSON(ROBOT_DEFAULT_POS_KEY, pos_default);
 
+    Matrix3d R_proxy_robot = Matrix3d::Identity();
+    Matrix3d robot_contact_release_rot = Matrix3d::Identity();
+
 	// cout << "R default:\n" << R_default << endl; 
 
 	VectorXd posori_task_torques = VectorXd::Zero(dof);
-	posori_task->_use_interpolation_flag = true;
+    posori_task->_use_interpolation_flag = true;
 
 	posori_task->_otg->setMaxLinearVelocity(0.30);
 	posori_task->_otg->setMaxLinearAcceleration(1.0);
@@ -176,7 +179,13 @@ int main() {
 	posori_task->_kp_ori = 200.0;
 	posori_task->_kv_ori = 23.0;
 
-    posori_task->_kp_moment = 1.5;
+    // TODO: tune PID gains for force control
+    posori_task->_kp_force = 1.0;
+    posori_task->_kv_force = 10.0;
+    posori_task->_ki_force = 0.7;
+
+    // TODO: tune PID gains for moment control
+    posori_task->_kp_moment = 2.5;
     posori_task->_kv_moment = 10.0;
     posori_task->_ki_moment = 0.7;
 
@@ -221,7 +230,7 @@ int main() {
 	Vector3d robot_proxy = Vector3d::Zero();
 	Matrix3d robot_proxy_rot = Matrix3d::Identity();
 	Vector3d haptic_proxy = Vector3d::Zero();
-	Vector3d prev_desired_force = Vector3d::Zero();
+    Vector3d prev_desired_force = Vector3d::Zero();
 
 	// setup redis keys to be updated with the callback
 	redis_client.createReadCallback(0);
@@ -356,6 +365,7 @@ int main() {
 				// Reinitialize controllers
 				posori_task->reInitializeTask();
                 posori_task->setClosedLoopMomentControl();
+//                posori_task->setClosedLoopForceControl(); // TODO: add passitivy observer + test closed-loop behavior
 
                 joint_task->reInitializeTask();
 				joint_task->_kp = 50.0;
@@ -369,31 +379,37 @@ int main() {
 		else if(state == CONTROL) {
 			// dual proxy
 			posori_task->_sigma_force = sigma_force;
-			posori_task->_sigma_position = sigma_motion;
+            posori_task->_sigma_position = sigma_motion;
+            Vector3d robot_position = posori_task->_current_position;
+            Matrix3d robot_orientation = posori_task->_current_orientation;
 
-			// TODO: do not update desired orientation when in contact
+            // surface-surface alignment
+            // do not update desired orientation when in contact
             if(force_space_dimension >= 1) {
-				Vector3d local_z = posori_task->_current_orientation.col(2);
-
+//                posori_task->_use_interpolation_flag = false; // TODO: disable interpolation during surface alignment?
+                Vector3d local_z = robot_orientation.col(2);
 				if(prev_force_space_dimension == 0) {
-					posori_task->setAngularMotionAxis(local_z);
+                    posori_task->setAngularMotionAxis(local_z);
+                    R_proxy_robot.setIdentity(); // the proxy and robot frames are aligned in free space
 				}
 				else {
 					posori_task->updateAngularMotionAxis(local_z);
-				}
+                }
 			}
 			else {
-				posori_task->setFullAngularMotionControl();
-                // posori_task->_desired_orientation = robot_proxy_rot;
-                // if(prev_force_space_dimension >= 1){
-                    // posori_task->_desired_orientation = posori_task->_current_orientation;
-                // }
+//                posori_task->_use_interpolation_flag = true;
+                posori_task->setFullAngularMotionControl();
+                // keep track of rotation from robot to proxy frame (not necessarily aligned during local autonomy)
+                if(prev_force_space_dimension >= 1) {
+                    R_proxy_robot = robot_proxy_rot.transpose() * robot_orientation;
+                }
 			}
 
-			Vector3d robot_position = posori_task->_current_position;
-
+            // motion
 			Vector3d motion_proxy = robot_position + sigma_motion * (robot_proxy - robot_position);
+            Matrix3d rotation_proxy = robot_proxy_rot * R_proxy_robot;
 
+            // force
 			Vector3d desired_force = k_vir * sigma_force * (robot_proxy - robot_position);
 			Vector3d desired_force_diff = desired_force - prev_desired_force;
 			if(desired_force_diff.norm() > max_force_diff) {
@@ -404,9 +420,10 @@ int main() {
 			}
 
 			// control
-			posori_task->_desired_position = motion_proxy;
+            posori_task->_desired_position = motion_proxy;
+//            posori_task->_desired_orientation = robot_proxy_rot;
+            posori_task->_desired_orientation = rotation_proxy;
 			posori_task->_desired_force = desired_force;
-            posori_task->_desired_orientation = robot_proxy_rot;
 
 			try	{
 				posori_task->computeTorques(posori_task_torques);
