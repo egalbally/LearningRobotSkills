@@ -101,7 +101,7 @@ int main() {
 
 	// start redis client local
 	redis_client = RedisClient();
-	redis_client.connect();
+    redis_client.connect();
 
 	// set up signal handler
 	signal(SIGABRT, &sighandler);
@@ -184,10 +184,9 @@ int main() {
     posori_task->_kv_force = 10.0;
     posori_task->_ki_force = 0.7;
 
-    // TODO: tune PID gains for moment control
-    posori_task->_kp_moment = 2.5;
-    posori_task->_kv_moment = 10.0;
-    posori_task->_ki_moment = 0.7;
+    posori_task->_kp_moment = 6.0;
+    posori_task->_kv_moment = 8.0;
+    posori_task->_ki_moment = 1.0;
 
 	// force sensing
 	Matrix3d R_link_sensor = Matrix3d::Identity();
@@ -386,21 +385,22 @@ int main() {
             // surface-surface alignment
             // do not update desired orientation when in contact
             if(force_space_dimension >= 1) {
-//                posori_task->_use_interpolation_flag = false; // TODO: disable interpolation during surface alignment?
                 Vector3d local_z = robot_orientation.col(2);
 				if(prev_force_space_dimension == 0) {
+                    // avoid step response when transitioning from free space to contact (reinitialize OTG)
+                    posori_task->_otg->reInitialize(robot_position, robot_orientation);
                     posori_task->setAngularMotionAxis(local_z);
-                    R_proxy_robot.setIdentity(); // the proxy and robot frames are aligned in free space
 				}
 				else {
 					posori_task->updateAngularMotionAxis(local_z);
                 }
 			}
-			else {
-//                posori_task->_use_interpolation_flag = true;
+            else {
                 posori_task->setFullAngularMotionControl();
-                // keep track of rotation from robot to proxy frame (not necessarily aligned during local autonomy)
-                if(prev_force_space_dimension >= 1) {
+                if (prev_force_space_dimension >= 1) {
+                    // avoid step response when transitioning from contact to free space (reinitialize OTG)
+                    posori_task->_otg->reInitialize(robot_position, robot_orientation);
+                    // keep track of rotation from robot to proxy frame (not necessarily aligned during local autonomy)
                     R_proxy_robot = robot_proxy_rot.transpose() * robot_orientation;
                 }
 			}
