@@ -178,8 +178,6 @@ int main() {
 	// force sensing
 	// TODO: remove force sensor from this application
 	Matrix3d R_link_sensor = Matrix3d::Identity();
-	R_link_sensor = AngleAxisd(-3.0/4.0*M_PI, Vector3d::UnitZ()).toRotationMatrix();
-
 	sensor_transform_in_link.translation() = sensor_pos_in_link;
 	sensor_transform_in_link.linear() = R_link_sensor;
 	posori_task->setForceSensorFrame(link_name, sensor_transform_in_link);

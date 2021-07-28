@@ -182,14 +182,6 @@ int main(int argc, char* argv[]) {
     teleop_task->_haptic_feedback_from_proxy = true;
     teleop_task->_send_haptic_feedback = true;
 
-    // Proxy impedance parameters
-    // TODO: calibrate for omega
-    double proxy_position_impedance = 1400.0;
-    double proxy_position_damping = 20.0;
-    double proxy_orientation_impedance = 20.0;
-    double proxy_orientation_damping = 0.5;
-    teleop_task->setVirtualProxyGains(proxy_position_impedance, proxy_position_damping, proxy_orientation_impedance, proxy_orientation_damping);
-
     double proxy_position_min_diff = 0.1;
 
     //User switch states
@@ -201,8 +193,8 @@ int main(int argc, char* argv[]) {
     robot_proxy_rot = robot_rotation_default;
 
      //Task scaling factors
-//    double Ks = 2.5;
-    double Ks = 6.0;
+    // double Ks = 2.5;
+    double Ks = 4.0;
     double KsR = 1.0;
     teleop_task->setScalingFactors(Ks, KsR);
 
@@ -220,6 +212,14 @@ int main(int argc, char* argv[]) {
 
     // double kv_haptic = 0.9 * _max_damping_device0[0];
     double kv_haptic = 0.5 * _max_damping_device0[0];
+
+    // Proxy impedance parameters
+    // TODO: calibrate for omega
+    double proxy_position_impedance = 0.5 * _max_stiffness_device0[0];
+    double proxy_position_damping = 0.5 * _max_damping_device0[0];
+    double proxy_orientation_impedance = 0.5 * _max_stiffness_device0[1];
+    double proxy_orientation_damping = 0.5 * _max_damping_device0[1];
+    teleop_task->setVirtualProxyGains(proxy_position_impedance, proxy_position_damping, proxy_orientation_impedance, proxy_orientation_damping);
 
     Vector3d proxy_position_device_frame = Vector3d::Zero();
 

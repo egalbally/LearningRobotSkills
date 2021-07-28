@@ -138,7 +138,6 @@ int main(int argc, char** argv)
 	// return 0;
 
 	Matrix3d R_link_sensor = Matrix3d::Identity();
-	R_link_sensor = AngleAxisd(-3.0/4.0*M_PI, Vector3d::UnitZ()).toRotationMatrix();
 
 	Vector3d mean_force = Vector3d::Zero();
 	Vector3d mean_moment = Vector3d::Zero();

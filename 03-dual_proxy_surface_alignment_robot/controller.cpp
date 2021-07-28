@@ -195,8 +195,6 @@ int main() {
 
     // force sensing
     Matrix3d R_link_sensor = Matrix3d::Identity();
-    R_link_sensor = AngleAxisd(-3.0/4.0*M_PI, Vector3d::UnitZ()).toRotationMatrix(); // for borns sensor connection
-
     sensor_transform_in_link.translation() = sensor_pos_in_link;
     sensor_transform_in_link.linear() = R_link_sensor;
     posori_task->setForceSensorFrame(link_name, sensor_transform_in_link);
@@ -211,9 +209,9 @@ int main() {
     bool first_loop = true;
 
     if(!flag_simulation) {
-        force_bias << 1.50346,   -8.19903,  -0.695169,  -0.987652,   0.290632, -0.0453239;
-        tool_mass = 0.33;
-        tool_com = Vector3d(-0.00492734, -0.00395005,   0.0859595);
+        force_bias << -0.0448175, 1.88045, -1.76062, -0.0733607, 0.392116, 0.0397938;
+        tool_mass = 0.366843;
+        tool_com = Vector3d(0.000607626, -0.00030761, 0.0402244);
     }
 
     // remove inertial forces from tool

@@ -177,8 +177,6 @@ int main() {
 
 	// force sensing
 	Matrix3d R_link_sensor = Matrix3d::Identity();
-    R_link_sensor = AngleAxisd(-3.0/4.0*M_PI, Vector3d::UnitZ()).toRotationMatrix(); // for borns sensor connection
-
 	sensor_transform_in_link.translation() = sensor_pos_in_link;
 	sensor_transform_in_link.linear() = R_link_sensor;
 	posori_task->setForceSensorFrame(link_name, sensor_transform_in_link);
