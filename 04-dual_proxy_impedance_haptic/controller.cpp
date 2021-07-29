@@ -1,11 +1,10 @@
-// This example tests the haptic device driver and the open-loop bilateral teleoperation controller.
+// This example tests robot motion control with impedance-based haptic feedback.
 
 #include <GL/glew.h>
 #include "redis/RedisClient.h"
 #include "timer/LoopTimer.h"
 #include "haptic_tasks/HapticController.h"
 #include "../src/Logger.h"
-#include <GLFW/glfw3.h> //must be loaded after loading opengl/glew
 
 #include <iostream>
 #include <string>
@@ -88,16 +87,20 @@ vector<string> DEVICE_SENSED_TORQUE_KEYS = {
     };
 
 // dual proxy
-string ROBOT_PROXY_KEY = "sai2::HapticApplications::03::dual_proxy::robot_proxy";
-string HAPTIC_PROXY_KEY = "sai2::HapticApplications::03::dual_proxy::haptic_proxy";
-string FORCE_SPACE_DIMENSION_KEY = "sai2::HapticApplications::03::dual_proxy::force_space_dimension";
-string SIGMA_FORCE_KEY = "sai2::HapticApplications::03::dual_proxy::sigma_force";
-string ROBOT_PROXY_ROT_KEY = "sai2::HapticApplications::03::dual_proxy::robot_proxy_rot";
-string ROBOT_DEFAULT_ROT_KEY = "sai2::HapticApplications::03::dual_proxy::robot_default_rot";
-string ROBOT_DEFAULT_POS_KEY = "sai2::HapticApplications::03::dual_proxy::robot_default_pos";
+string ROBOT_PROXY_KEY = "sai2::HapticApplications::05::dual_proxy::robot_proxy";
+string HAPTIC_PROXY_KEY = "sai2::HapticApplications::05::dual_proxy::haptic_proxy";
+string FORCE_SPACE_DIMENSION_KEY = "sai2::HapticApplications::05::dual_proxy::force_space_dimension";
+string SIGMA_FORCE_KEY = "sai2::HapticApplications::05::dual_proxy::sigma_force";
+string ROBOT_PROXY_ROT_KEY = "sai2::HapticApplications::05::dual_proxy::robot_proxy_rot";
+string ROBOT_DEFAULT_ROT_KEY = "sai2::HapticApplications::05::dual_proxy::robot_default_rot";
+string ROBOT_DEFAULT_POS_KEY = "sai2::HapticApplications::05::dual_proxy::robot_default_pos";
 
-string HAPTIC_DEVICE_READY_KEY = "sai2::HapticApplications::03::dual_proxy::haptic_device_ready";
-string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::03::dual_proxy::controller_running";
+string HAPTIC_DEVICE_READY_KEY = "sai2::HapticApplications::05::dual_proxy::haptic_device_ready";
+string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::05::dual_proxy::controller_running";
+
+// impedance-based haptic feedback
+string PROXY_FEEDBACK_MIN_DIFF_KEY = "sai2::HapticApplications::05::proxy_feedback::min_diff";
+string PROXY_FEEDBACK_IMPEDANCE_KEY = "sai2::HapticApplications::05::proxy_feedback::impedance";
 
 int haptic_device_ready = 0;
 int force_space_dimension = 0;
@@ -117,16 +120,6 @@ RedisClient redis_client_remote;
 
 // communication function prototype
 void communication(int delay);
-
-// callback to print glfw errors
-void glfwError(int error, const char* description);
-
-// callback when a key is pressed
-void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods);
-
-// flags for interaction
-bool fDisengageHapticDevice = false;
-bool fEngageHapticDevice = false;
 
 int main(int argc, char* argv[]) {
 
@@ -175,7 +168,10 @@ int main(int argc, char* argv[]) {
     Vector3d device_pos_center = Vector3d::Zero();
     Matrix3d device_release_rot = Matrix3d::Identity();
     auto teleop_task = new Sai2Primitives::HapticController(robot_workspace_center, robot_rotation_default, R_device_robot);
-    teleop_task->_send_haptic_feedback = false;
+    teleop_task->_haptic_feedback_from_proxy = true;
+    teleop_task->_send_haptic_feedback = false; // set to false to compute desired haptic force manually
+
+    double proxy_position_min_diff = 0.005; // impedance deadband radius in haptic frame
 
     //User switch states
     teleop_task->UseGripperAsSwitch();
@@ -186,7 +182,8 @@ int main(int argc, char* argv[]) {
     robot_proxy_rot = robot_rotation_default;
 
      //Task scaling factors
-    double Ks = 2.5;
+    // double Ks = 2.5;
+    double Ks = 4.0;
     double KsR = 1.0;
     teleop_task->setScalingFactors(Ks, KsR);
 
@@ -205,7 +202,19 @@ int main(int argc, char* argv[]) {
     // double kv_haptic = 0.9 * _max_damping_device0[0];
     double kv_haptic = 0.5 * _max_damping_device0[0];
 
+    // Proxy impedance parameters
+    // TODO: calibrate for omega
+    double proxy_position_impedance = 0.2 * _max_stiffness_device0[0];
+    double proxy_position_damping = 0.5 * _max_damping_device0[0];
+    double proxy_orientation_impedance = 0.2 * _max_stiffness_device0[1];
+    double proxy_orientation_damping = 0.5 * _max_damping_device0[1];
+    teleop_task->setVirtualProxyGains(proxy_position_impedance, proxy_position_damping, proxy_orientation_impedance, proxy_orientation_damping);
+
     Vector3d proxy_position_device_frame = Vector3d::Zero();
+
+    // initialize redis keys for proxy impedance
+    redis_client_local.set(PROXY_FEEDBACK_MIN_DIFF_KEY, std::to_string(proxy_position_min_diff));
+    redis_client_local.set(PROXY_FEEDBACK_IMPEDANCE_KEY, std::to_string(proxy_position_impedance));
 
     // setup redis keys to be updated with the callback
     redis_client_local.createReadCallback(0);
@@ -221,6 +230,9 @@ int main(int argc, char* argv[]) {
     redis_client_local.addDoubleToReadCallback(0, DEVICE_GRIPPER_POSITION_KEYS[0], teleop_task->_current_position_gripper_device);
     redis_client_local.addDoubleToReadCallback(0, DEVICE_GRIPPER_VELOCITY_KEYS[0], teleop_task->_current_gripper_velocity_device);
 
+    redis_client_local.addDoubleToReadCallback(0, PROXY_FEEDBACK_MIN_DIFF_KEY, proxy_position_min_diff);
+    redis_client_local.addDoubleToReadCallback(0, PROXY_FEEDBACK_IMPEDANCE_KEY, proxy_position_impedance);
+
     // Objects to write to redis
     //write haptic commands
     redis_client_local.addEigenToWriteCallback(0, DEVICE_COMMANDED_FORCE_KEYS[0], teleop_task->_commanded_force_device);
@@ -231,7 +243,7 @@ int main(int argc, char* argv[]) {
     string folder = "../../03-dual_proxy_surface_alignment_haptic/data_logging/data/";
     string filename = "data";
     auto logger = new Logging::Logger(100000, folder + filename);
-
+    
     Vector3d log_haptic_position = Vector3d::Zero();
     Vector3d log_haptic_velocity = Vector3d::Zero();
     Vector3d log_haptic_proxy = haptic_proxy;
@@ -243,40 +255,6 @@ int main(int argc, char* argv[]) {
     logger->addVectorToLog(&log_haptic_commanded_force, "haptic_command_force");
 
     logger->start();
-
-    /*------- set up interactive window -------*/
-    // set up error callback
-    glfwSetErrorCallback(glfwError);
-
-    // initialize GLFW
-    glfwInit();
-
-    // retrieve resolution of computer display and position window accordingly
-    GLFWmonitor* primary = glfwGetPrimaryMonitor();
-    const GLFWvidmode* mode = glfwGetVideoMode(primary);
-
-    // information about computer screen and GLUT display window
-    int screenW = mode->width;
-    int screenH = mode->height;
-    int windowW = 0.4 * screenH;
-    int windowH = 0.25 * screenH;
-    int windowPosY = (screenH - windowH) / 2;
-    int windowPosX = windowPosY;
-
-    // create window and make it current
-    // glfwWindowHint(GLFW_VISIBLE, 0);
-    // GLFWwindow* window = glfwCreateWindow(windowW, windowH, "SAI2.0 - HapticApplications", NULL, NULL);
-    // glfwSetWindowPos(window, windowPosX, windowPosY);
-    // glfwShowWindow(window);
-    // glfwMakeContextCurrent(window);
-    // glfwSwapInterval(1);
-
-    // set callbacks
-    // glfwSetKeyCallback(window, keySelect);
-
-    // use haptic engaged state
-    bool haptic_device_engaged = true;
-    bool prev_haptic_device_state = haptic_device_engaged;
 
     // start communication thread and loop
     runloop = true;
@@ -294,14 +272,10 @@ int main(int argc, char* argv[]) {
     bool fTimerDidSleep = true;
     double start_time = timer.elapsedTime(); //secs
 
-    // while (!glfwWindowShouldClose(window) && runloop) {
     while (runloop) {
         // wait for next scheduled loop
         timer.waitForNextLoop();
         current_time = timer.elapsedTime() - start_time;
-
-        // poll events on interactive window
-        // glfwPollEvents();
 
         // read haptic state and robot state
         redis_client_local.executeReadCallback(0);
@@ -309,16 +283,6 @@ int main(int argc, char* argv[]) {
         teleop_task->UseGripperAsSwitch();
         gripper_state_prev = gripper_state;
         gripper_state = teleop_task->gripper_state;
-
-        // check if haptic device is disengaged
-        if (fDisengageHapticDevice && haptic_device_engaged) {
-            haptic_device_engaged = false;
-        }
-
-        // check if haptic device is engaged
-        if (fEngageHapticDevice && !haptic_device_engaged) {
-            haptic_device_engaged = true;
-        }
 
         if(state == INIT) {
             // compute homing haptic device
@@ -345,64 +309,62 @@ int main(int argc, char* argv[]) {
 
         else if(state == CONTROL) {
             Vector3d desired_force = Vector3d::Zero();
-            Vector3d device_disengaged_pos = Vector3d::Zero();
 
-            // only update haptic control if device is engaged
-            if (haptic_device_engaged) {
-                // reinitialize teleop task if haptic device previously disengaged
-                if(prev_haptic_device_state != haptic_device_engaged) {
-//                    teleop_task->setDeviceCenter(teleop_task->_current_position_device, teleop_task->_current_rotation_device);
-//                    device_rot_center = teleop_task->_current_rotation_device;
-//                    device_pos_center = teleop_task->_current_position_device;
-                    device_pos_center = teleop_task->_home_position_device + teleop_task->_current_position_device - device_disengaged_pos;
+            // update proxy gains
+            // TODO: only call when gains are changed
+//                teleop_task->setVirtualProxyGains(proxy_position_impedance, proxy_position_damping, proxy_orientation_impedance, proxy_orientation_damping);
 
+            // update proxy position
+//                teleop_task->updateVirtualProxyPositionVelocity(delayed_haptic_proxy, Vector3d::Zero(), Matrix3d::Identity(), Vector3d::Zero());
+
+            // compute haptic commands
+            if(gripper_state) { // full control
+                if(!gripper_state_prev) {
+                    device_rot_center = device_release_rot.transpose() * teleop_task->_current_rotation_device;
                     teleop_task->setDeviceCenter(device_pos_center, device_rot_center);
-
-                    // Reinitialize controllers
-//                    teleop_task->reInitializeTask();
                 }
-
-                // compute haptic commands
-                if(gripper_state) { // full control
-                    if(!gripper_state_prev) {
-                        device_rot_center = device_release_rot.transpose() * teleop_task->_current_rotation_device;
-                        teleop_task->setDeviceCenter(device_pos_center, device_rot_center);
-                    }
-                    teleop_task->computeHapticCommands6d(robot_proxy, robot_proxy_rot);
-                }
-                else { // only position control
-                    if(gripper_state_prev) {
-                        device_release_rot = teleop_task->_current_rotation_device * device_rot_center.transpose();
-                    }
-                    teleop_task->computeHapticCommands3d(robot_proxy);
-                }
-
-                Vector3d device_position = teleop_task->_current_position_device;
-                proxy_position_device_frame = teleop_task->_home_position_device + teleop_task->_Rotation_Matrix_DeviceToRobot * (delayed_haptic_proxy - teleop_task->_center_position_robot) / Ks;
-
-                desired_force = k_vir * delayed_sigma_force * (proxy_position_device_frame - device_position);
-                Vector3d desired_force_diff = desired_force - prev_desired_force;
-                if(desired_force_diff.norm() > max_force_diff) {
-                    desired_force = prev_desired_force + max_force_diff * desired_force_diff/desired_force_diff.norm();
-                }
-                if(desired_force.norm() > max_force) {
-                    desired_force *= max_force/desired_force.norm();
-                }
+                teleop_task->computeHapticCommands6d(robot_proxy, robot_proxy_rot);
             }
+            else { // only position control
+                if(gripper_state_prev) {
+                    device_release_rot = teleop_task->_current_rotation_device * device_rot_center.transpose();
+                }
+                teleop_task->computeHapticCommands3d(robot_proxy);
+            }
+
+//            f_task_trans = _proxy_position_impedance*(_current_position_proxy - _desired_position_robot) - _proxy_position_damping * (_current_trans_velocity_device_RobFrame - _current_trans_velocity_proxy);
+
+            // impedance-based haptic feedback
+            Vector3d device_position = teleop_task->_current_position_device;
+            proxy_position_device_frame = teleop_task->_home_position_device + teleop_task->_Rotation_Matrix_DeviceToRobot * (delayed_haptic_proxy - teleop_task->_center_position_robot) / Ks;
+            Vector3d proxy_position_diff = proxy_position_device_frame - device_position;
+
+//            Vector3d proxy_position_diff = delayed_haptic_proxy - robot_proxy;
+
+            double proxy_position_diff_norm = proxy_position_diff.norm();
+
+            // deadband
+            if(proxy_position_diff_norm <= proxy_position_min_diff) {
+                proxy_position_diff.setZero();
+            }
+            // start at zero force outside of deadband
             else {
-                // set haptic device force to zero if disengaged
-                desired_force = Vector3d::Zero();
-                // record haptic device position when switching from engaged to disengaged
-                if(prev_haptic_device_state == haptic_device_engaged) {
-                    device_disengaged_pos = teleop_task->_current_position_device;
-                }
+                proxy_position_diff *= (proxy_position_diff_norm - proxy_position_min_diff) / proxy_position_diff_norm;
             }
 
-            teleop_task->_commanded_force_device = desired_force - kv_haptic * delayed_sigma_force * teleop_task->_current_trans_velocity_device;
+            desired_force = proxy_position_impedance * proxy_position_diff;
+            Vector3d desired_force_diff = desired_force - prev_desired_force;
+            if(desired_force_diff.norm() > max_force_diff) {
+                desired_force = prev_desired_force + max_force_diff * desired_force_diff/desired_force_diff.norm();
+            }
+            if(desired_force.norm() > max_force) {
+                desired_force *= max_force/desired_force.norm();
+            }
+
+            teleop_task->_commanded_force_device = desired_force - proxy_position_damping * teleop_task->_current_trans_velocity_device;
 
             // remember values
             prev_desired_force = desired_force;
-            prev_haptic_device_state = haptic_device_engaged;
         }
 
         // write control torques
@@ -412,8 +374,8 @@ int main(int argc, char* argv[]) {
         log_haptic_position = teleop_task->_current_position_device;
         log_haptic_velocity = teleop_task->_current_trans_velocity_device;
         log_haptic_proxy = proxy_position_device_frame;
-        log_haptic_commanded_force = teleop_task->_commanded_force_device;
-
+        log_haptic_commanded_force = teleop_task->_commanded_force_device;          
+        
         controller_counter++;
     }
 
@@ -434,12 +396,6 @@ int main(int argc, char* argv[]) {
     std::cout << "Controller Loop run time  : " << end_time << " seconds\n";
     std::cout << "Controller Loop updates   : " << timer.elapsedCycles() << "\n";
     std::cout << "Controller Loop frequency : " << timer.elapsedCycles()/end_time << "Hz\n";
-
-    // destroy context
-    // glfwDestroyWindow(window);
-
-    // terminate
-    // glfwTerminate();
 
     return 0;
 }
@@ -481,7 +437,7 @@ void communication(int delay) {
 
     unsigned long long communication_counter = 0;
     const int communication_delay_ncycles = communication_delay_ms / 1000.0 * communication_freq;
-
+    
     while(runloop) {
         timer.waitForNextLoop();
 
@@ -530,33 +486,4 @@ void communication(int delay) {
     std::cout << "Communication Loop run time  : " << end_time << " seconds\n";
     std::cout << "Communication Loop updates   : " << timer.elapsedCycles() << "\n";
     std::cout << "Communication Loop frequency : " << timer.elapsedCycles()/end_time << "Hz\n";
-}
-
-//------------------------------------------------------------------------------
-
-void glfwError(int error, const char* description) {
-    cerr << "GLFW Error: " << description << endl;
-    exit(1);
-}
-
-//------------------------------------------------------------------------------
-
-void keySelect(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    bool set = (action != GLFW_RELEASE);
-    switch(key) {
-        case GLFW_KEY_ESCAPE:
-            // exit application
-            glfwSetWindowShouldClose(window,GL_TRUE);
-            break;
-        case GLFW_KEY_D:
-            fDisengageHapticDevice = set;
-            break;
-        case GLFW_KEY_E:
-            fEngageHapticDevice = set;
-            break;
-        default:
-            break;
-
-    }
 }
