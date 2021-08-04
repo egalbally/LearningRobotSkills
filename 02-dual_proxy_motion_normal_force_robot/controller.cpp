@@ -74,6 +74,7 @@ VectorXd dummy_q = VectorXd::Zero(23);
 VectorXd dummy_dq = VectorXd::Zero(23);
 VectorXd dummy_tau = VectorXd::Zero(23);
 VectorXd dummy_force = VectorXd::Zero(23);
+
 const double control_loop_freq = 1000.0;
 const double pfilter_freq = 50.0;
 const double freq_ratio_filter_control = pfilter_freq / control_loop_freq;
