@@ -33,6 +33,7 @@ string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::02::simviz::sensors::dq
 string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::02::simviz::actuators::tau_cmd";
 
 string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02::simviz::sensors::sensed_force";
+string ALLGERO_TORQUE_COMMANDED_SIM = "allegroHand::controller::joint_torques_commanded_sim";
 
 string MASSMATRIX_KEY;
 string CORIOLIS_KEY;
@@ -74,6 +75,7 @@ VectorXd dummy_q = VectorXd::Zero(23);
 VectorXd dummy_dq = VectorXd::Zero(23);
 VectorXd dummy_tau = VectorXd::Zero(23);
 VectorXd dummy_force = VectorXd::Zero(23);
+VectorXd allegro_tau = VectorXd::Zero(16);
 
 const double control_loop_freq = 1000.0;
 const double pfilter_freq = 50.0;
@@ -242,7 +244,8 @@ int main() {
 	redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_ready);
 
 	redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, dummy_force);
-
+	redis_client.addEigenToReadCallback(0, ALLGERO_TORQUE_COMMANDED_SIM, allegro_tau);
+	
 	// Objects to write to redis
 	redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, dummy_tau);
 
@@ -406,7 +409,7 @@ int main() {
 
 		// write control torques and dual proxy variables
 		robot->position(haptic_proxy, link_name, pos_in_link);
-		dummy_tau << command_torques(0), command_torques(1), command_torques(2), command_torques(3), command_torques(4), command_torques(5), command_torques(6), 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0;
+		dummy_tau << command_torques(0), command_torques(1), command_torques(2), command_torques(3), command_torques(4), command_torques(5), command_torques(6), allegro_tau(0),allegro_tau(1),allegro_tau(2),allegro_tau(3), allegro_tau(4),allegro_tau(5),allegro_tau(6),allegro_tau(7), allegro_tau(8),allegro_tau(9),allegro_tau(10),allegro_tau(11), allegro_tau(12),allegro_tau(13),allegro_tau(14),allegro_tau(15);
 
 		redis_client.executeWriteCallback(0);
 		
