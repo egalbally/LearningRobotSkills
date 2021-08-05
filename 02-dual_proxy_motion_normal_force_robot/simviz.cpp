@@ -24,7 +24,7 @@ using namespace Eigen;
 using namespace chai3d;
 
 const string world_file = "./resources/world.urdf";
-const string robot_file = "./resources/panda_arm.urdf";
+const string robot_file = "./resources/panda_arm_allegro.urdf";
 const string robot_name = "panda";
 const string camera_name = "camera";
 const string link_name = "end_effector"; //robot end-effector
