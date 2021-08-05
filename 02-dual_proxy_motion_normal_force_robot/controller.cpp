@@ -406,7 +406,7 @@ int main() {
 
 		// write control torques and dual proxy variables
 		robot->position(haptic_proxy, link_name, pos_in_link);
-		dummy_tau << command_torques(0), command_torques(1), command_torques(2), command_torques(3), command_torques(4), command_torques(5), command_torques(6), 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0;
+		dummy_tau << command_torques(0), command_torques(1), command_torques(2), command_torques(3), command_torques(4), command_torques(5), command_torques(6), 0,0,0,0, 0,0,0,0, 0,0,0,0.7, 0,0,0.4,0.8;
 
 		redis_client.executeWriteCallback(0);
 		
