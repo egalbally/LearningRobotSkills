@@ -38,6 +38,7 @@ string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::02::simviz::actuat
 
 string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02::simviz::sensors::sensed_force";
 string ALLGERO_TORQUE_COMMANDED = "allegroHand::controller::joint_torques_commanded";
+string ALLGERO_POSITION_COMMANDED = "allegroHand::controller::joint_positions_commanded";
 
 RedisClient redis_client;
 
@@ -249,7 +250,19 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 
 	int dof = robot->dof();
 	VectorXd command_torques = VectorXd::Zero(dof);
+	VectorXd g = VectorXd::Zero(dof);
+	VectorXd control_torque = VectorXd::Zero(dof);
+	VectorXd q = VectorXd::Zero(dof);
+	VectorXd dq = VectorXd::Zero(dof);
+	VectorXd q_des = VectorXd::Zero(16);
+	VectorXd q_init = VectorXd::Zero(dof);
+
 	redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
+	redis_client.setEigenMatrixJSON(ALLGERO_POSITION_COMMANDED, q_des);
+	
+	double kv = 20;
+	// hand mode
+	string hand_control_mode = "p";    // t for torque, p for position
 
 	// sensed force
 	Vector3d sensed_force = Vector3d::Zero();
@@ -260,6 +273,7 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 	// redis communication
 	redis_client.createReadCallback(0);
 	redis_client.addEigenToReadCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
+	redis_client.addEigenToReadCallback(0, ALLGERO_POSITION_COMMANDED, q_des);
 
 	redis_client.createWriteCallback(0);
 	redis_client.addEigenToWriteCallback(0, JOINT_ANGLES_KEY, robot->_q);
@@ -276,12 +290,53 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 	bool fTimerDidSleep = true;
 
 	unsigned long long simulation_counter = 0;
+	VectorXd allegro_tau_gravity = VectorXd::Zero(23);
+
+	// for default pd controller
+	double kp_default[] = {
+		10, 10, 10, 10,
+		10, 10, 10, 10,
+		10, 10, 10, 10,
+		10, 10, 10, 10
+	};
+	double kv_default[] = {
+		0.03, 0.03, 0.03, 0.03,
+		0.03, 0.03, 0.03, 0.03,
+		0.03, 0.03, 0.03, 0.03,
+		0.03, 0.03, 0.03, 0.03
+	};
+
+	q_init = robot->_q;
 
 	while (fSimulationRunning) {
 		fTimerDidSleep = timer.waitForNextLoop();
 
 		// particle pos from controller
 		redis_client.executeReadCallback(0);
+		
+		robot->gravityVector(g);
+		allegro_tau_gravity = g - robot->_M * (kv * robot->_dq);
+		q = robot->_q;
+		dq = robot->_dq;
+		
+		// compute joint torque
+		for (int i = 7; i < 23; i++)  
+		{
+			if(hand_control_mode == "t")
+			{
+				command_torques[i] += allegro_tau_gravity[i];
+			}
+			else if(hand_control_mode == "p")
+			{
+				control_torque[i] = -kp_default[i-7]*(q[i]-q_des[i-7]) - kv_default[i-7]*dq[i];
+				command_torques[i] = control_torque[i] + allegro_tau_gravity[i];
+			}
+			else
+			{
+				command_torques[i] = allegro_tau_gravity[i];
+			}
+		}
+
 		allegro_tau << command_torques(7), command_torques(8), command_torques(9), command_torques(10),command_torques(11),command_torques(12),command_torques(13),command_torques(14),command_torques(15),command_torques(16),command_torques(17),command_torques(18),command_torques(19),command_torques(20),command_torques(21),command_torques(22);
 		sim->setJointTorques(robot_name, command_torques);
 
