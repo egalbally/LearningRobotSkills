@@ -327,7 +327,11 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 	VectorXd command_torques_hand_sim = VectorXd::Zero(16);
 	VectorXd command_torques_hand = VectorXd::Zero(16);
 	
+	VectorXd robot_q = VectorXd::Zero(7);
+	VectorXd robot_dq = VectorXd::Zero(7);
 
+	robot_q << robot->_q(0), robot->_q(1), robot->_q(2), robot->_q(3), robot->_q(4), robot->_q(5), robot->_q(6);
+	robot_dq << robot->_dq(0), robot->_dq(1), robot->_dq(2), robot->_dq(3), robot->_dq(4), robot->_dq(5), robot->_dq(6);
 	// redis communication
 	redis_client.createReadCallback(0);
 	redis_client.addEigenToReadCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques_robot);
@@ -335,8 +339,8 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 	redis_client.addEigenToReadCallback(0, ALLGERO_POSITION_COMMANDED, q_des);
 
 	redis_client.createWriteCallback(0);
-	redis_client.addEigenToWriteCallback(0, JOINT_ANGLES_KEY, robot->_q);
-	redis_client.addEigenToWriteCallback(0, JOINT_VELOCITIES_KEY, robot->_dq);
+	redis_client.addEigenToWriteCallback(0, JOINT_ANGLES_KEY, robot_q);
+	redis_client.addEigenToWriteCallback(0, JOINT_VELOCITIES_KEY, robot_dq);
 	redis_client.addEigenToWriteCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment);
 	redis_client.addEigenToWriteCallback(0, ALLGERO_TORQUE_COMMANDED, command_torques_hand);
 
@@ -420,6 +424,8 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
             sim->getObjectPosition(obj.name, obj.position, obj.orientation);
         }
 
+        robot_q << robot->_q(0), robot->_q(1), robot->_q(2), robot->_q(3), robot->_q(4), robot->_q(5), robot->_q(6);
+		robot_dq << robot->_dq(0), robot->_dq(1), robot->_dq(2), robot->_dq(3), robot->_dq(4), robot->_dq(5), robot->_dq(6);
 		redis_client.executeWriteCallback(0);
 
 		simulation_counter++;

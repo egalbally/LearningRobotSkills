@@ -70,10 +70,6 @@ queue<Vector3d> pfilter_force_control_buffer;
 queue<Vector3d> pfilter_sensed_force_buffer;
 queue<Vector3d> pfilter_sensed_velocity_buffer;
 
-VectorXd dummy_q = VectorXd::Zero(23);
-VectorXd dummy_dq = VectorXd::Zero(23);
-VectorXd dummy_force = VectorXd::Zero(23);
-
 const double control_loop_freq = 1000.0;
 const double pfilter_freq = 50.0;
 const double freq_ratio_filter_control = pfilter_freq / control_loop_freq;
@@ -117,8 +113,7 @@ int main() {
 	T_world_robot.translation() = Vector3d(0, 0, 0);
 	auto robot = new Sai2Model::Sai2Model(robot_file, false, T_world_robot);
 
-	dummy_q = redis_client.getEigenMatrixJSON(JOINT_ANGLES_KEY);
-	robot->_q << dummy_q(0), dummy_q(1), dummy_q(2), dummy_q(3), dummy_q(4), dummy_q(5), dummy_q(6);
+	robot->_q = redis_client.getEigenMatrixJSON(JOINT_ANGLES_KEY);
 	robot->updateModel();
 
 	int dof = robot->dof();
@@ -226,8 +221,8 @@ int main() {
 	redis_client.createWriteCallback(0);
 
 	// Objects to read from redis
-    redis_client.addEigenToReadCallback(0, JOINT_ANGLES_KEY, dummy_q);
-    redis_client.addEigenToReadCallback(0, JOINT_VELOCITIES_KEY, dummy_dq);
+    redis_client.addEigenToReadCallback(0, JOINT_ANGLES_KEY, robot->_q);
+    redis_client.addEigenToReadCallback(0, JOINT_VELOCITIES_KEY, robot->_dq);
 
     MatrixXd mass_from_robot = MatrixXd::Identity(dof,dof);
     VectorXd coriolis_from_robot = VectorXd::Zero(dof);
@@ -240,7 +235,7 @@ int main() {
 	redis_client.addEigenToReadCallback(0, ROBOT_PROXY_ROT_KEY, robot_proxy_rot);
 	redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_ready);
 
-	redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, dummy_force);
+	redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
 	
 	// Objects to write to redis
 	redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
@@ -299,10 +294,6 @@ int main() {
 
 		// read haptic state and robot state
 		redis_client.executeReadCallback(0);
-		robot->_q << dummy_q(0), dummy_q(1), dummy_q(2), dummy_q(3), dummy_q(4), dummy_q(5), dummy_q(6);
-		robot->_dq << dummy_dq(0), dummy_dq(1), dummy_dq(2), dummy_dq(3), dummy_dq(4), dummy_dq(5), dummy_dq(6);
-		sensed_force_moment_local_frame << dummy_force(0), dummy_force(1), dummy_force(2), dummy_force(3), dummy_force(4), dummy_force(5), dummy_force(6);
-		
 
 		if(flag_simulation) {
 			robot->updateModel();
