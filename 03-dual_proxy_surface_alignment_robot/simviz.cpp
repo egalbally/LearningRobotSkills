@@ -250,7 +250,8 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
     // init control variables
     int dof = robot->dof();
     VectorXd command_torques = VectorXd::Zero(dof);
-    redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
+    VectorXd command_torques_robot = VectorXd::Zero(7);
+    redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques_robot);
 
     // initialize robot configuration
     VectorXd q_init = VectorXd::Zero(dof);
@@ -263,10 +264,11 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
     Vector3d sensed_force = Vector3d::Zero();
     Vector3d sensed_moment = Vector3d::Zero();
     VectorXd sensed_force_moment = VectorXd::Zero(6);
+    VectorXd command_torques_hand_sim = VectorXd::Zero(16);
 
     // redis communication
     redis_client.createReadCallback(0);
-    redis_client.addEigenToReadCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
+    redis_client.addEigenToReadCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques_robot);
 
     redis_client.createWriteCallback(0);
     redis_client.addEigenToWriteCallback(0, JOINT_ANGLES_KEY, robot->_q);
@@ -289,6 +291,7 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 
         // particle pos from controller
         redis_client.executeReadCallback(0);
+        command_torques << command_torques_robot, command_torques_hand_sim;
         sim->setJointTorques(robot_name, command_torques);
 
         // integrate forward

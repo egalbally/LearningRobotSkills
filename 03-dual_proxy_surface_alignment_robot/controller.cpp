@@ -79,7 +79,6 @@ Vector3d measured_force_pfilter;
 
 VectorXd dummy_q = VectorXd::Zero(23);
 VectorXd dummy_dq = VectorXd::Zero(23);
-VectorXd dummy_tau = VectorXd::Zero(23);
 VectorXd dummy_force = VectorXd::Zero(23);
 
 queue<Vector3d> pfilter_motion_control_buffer;
@@ -251,7 +250,7 @@ int main() {
     redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, dummy_force);
 
     // Objects to write to redis
-    redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, dummy_tau);
+    redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
 
     redis_client.addEigenToWriteCallback(0, HAPTIC_PROXY_KEY, haptic_proxy);
     redis_client.addEigenToWriteCallback(0, SIGMA_FORCE_KEY, sigma_force);
@@ -487,7 +486,6 @@ int main() {
 
         // write control torques and dual proxy variables
         robot->position(haptic_proxy, link_name, pos_in_link);
-        dummy_tau << command_torques(0), command_torques(1), command_torques(2), command_torques(3), command_torques(4), command_torques(5), command_torques(6), 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0;
 
         redis_client.executeWriteCallback(0);
 
@@ -545,8 +543,7 @@ int main() {
 
     //// Send zero force/torque to robot ////
     command_torques.setZero();
-    dummy_tau.setZero();
-    redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, dummy_tau);
+    redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
     redis_client.set(CONTROLLER_RUNNING_KEY,"0");
 
 
