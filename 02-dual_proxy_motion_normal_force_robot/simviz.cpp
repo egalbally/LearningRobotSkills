@@ -68,6 +68,7 @@ string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::02::simviz::actuat
 
 string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02::simviz::sensors::sensed_force";
 string ALLGERO_TORQUE_COMMANDED = "allegroHand::controller::joint_torques_commanded";
+string ALLGERO_TORQUE_COMMANDED_SIM = "allegroHand::controller::joint_torques_commanded_sim";
 string ALLGERO_POSITION_COMMANDED = "allegroHand::controller::joint_positions_commanded";
 
 RedisClient redis_client;
@@ -310,8 +311,9 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 	VectorXd dq = VectorXd::Zero(dof);
 	VectorXd q_des = VectorXd::Zero(16);
 	VectorXd q_init = VectorXd::Zero(dof);
+	VectorXd command_torques_robot = VectorXd::Zero(7);
 
-	redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
+	redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques_robot);
 	redis_client.setEigenMatrixJSON(ALLGERO_POSITION_COMMANDED, q_des);
 
 	double kv = 20;
@@ -322,18 +324,21 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 	Vector3d sensed_force = Vector3d::Zero();
 	Vector3d sensed_moment = Vector3d::Zero();
 	VectorXd sensed_force_moment = VectorXd::Zero(6);
-	VectorXd allegro_tau = VectorXd::Zero(16);
+	VectorXd command_torques_hand_sim = VectorXd::Zero(16);
+	VectorXd command_torques_hand = VectorXd::Zero(16);
+	
 
 	// redis communication
 	redis_client.createReadCallback(0);
-	redis_client.addEigenToReadCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
+	redis_client.addEigenToReadCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques_robot);
+	redis_client.addEigenToReadCallback(0, ALLGERO_TORQUE_COMMANDED_SIM, command_torques_hand_sim);
 	redis_client.addEigenToReadCallback(0, ALLGERO_POSITION_COMMANDED, q_des);
 
 	redis_client.createWriteCallback(0);
 	redis_client.addEigenToWriteCallback(0, JOINT_ANGLES_KEY, robot->_q);
 	redis_client.addEigenToWriteCallback(0, JOINT_VELOCITIES_KEY, robot->_dq);
 	redis_client.addEigenToWriteCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment);
-	redis_client.addEigenToWriteCallback(0, ALLGERO_TORQUE_COMMANDED, allegro_tau);
+	redis_client.addEigenToWriteCallback(0, ALLGERO_TORQUE_COMMANDED, command_torques_hand);
 
 	// create a timer
 	double sim_frequency = 2000.0;
@@ -374,6 +379,7 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 		dq = robot->_dq;
 		
 		// compute joint torque
+		command_torques << command_torques_robot, command_torques_hand_sim;
 		for (int i = 7; i < 23; i++)  
 		{
 			if(hand_control_mode == "t")
@@ -391,7 +397,7 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 			}
 		}
 
-		allegro_tau << command_torques(7), command_torques(8), command_torques(9), command_torques(10),command_torques(11),command_torques(12),command_torques(13),command_torques(14),command_torques(15),command_torques(16),command_torques(17),command_torques(18),command_torques(19),command_torques(20),command_torques(21),command_torques(22);
+		command_torques_hand << command_torques(7), command_torques(8), command_torques(9), command_torques(10),command_torques(11),command_torques(12),command_torques(13),command_torques(14),command_torques(15),command_torques(16),command_torques(17),command_torques(18),command_torques(19),command_torques(20),command_torques(21),command_torques(22);
 		sim->setJointTorques(robot_name, command_torques);
 
 		// integrate forward
