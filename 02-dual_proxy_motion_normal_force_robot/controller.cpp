@@ -49,6 +49,8 @@ string ROBOT_DEFAULT_POS_KEY = "sai2::HapticApplications::02::dual_proxy::robot_
 string HAPTIC_DEVICE_READY_KEY = "sai2::HapticApplications::02::dual_proxy::haptic_device_ready";
 string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::02::dual_proxy::controller_running";
 
+string ALLGERO_POSITION_COMMANDED = "allegroHand::controller::joint_positions_commanded";
+string ALLGERO_STATES_COMMANDED = "allegroHand::controller::joint_states_commanded";
 
 RedisClient redis_client;
 
@@ -216,6 +218,9 @@ int main() {
 	Vector3d haptic_proxy = Vector3d::Zero();
 	Vector3d prev_desired_force = Vector3d::Zero();
 
+	VectorXd q_des_hand = VectorXd::Zero(16);
+	string activeStateString;
+
 	// setup redis keys to be updated with the callback
 	redis_client.createReadCallback(0);
 	redis_client.createWriteCallback(0);
@@ -237,6 +242,8 @@ int main() {
 
 	redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
 	
+	redis_client.addStringToReadCallback(0, ALLGERO_STATES_COMMANDED, activeStateString);
+
 	// Objects to write to redis
 	redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
 
@@ -244,7 +251,7 @@ int main() {
 	redis_client.addEigenToWriteCallback(0, SIGMA_FORCE_KEY, sigma_force);
 	redis_client.addIntToWriteCallback(0, FORCE_SPACE_DIMENSION_KEY, force_space_dimension);
 
-
+	redis_client.addEigenToWriteCallback(0, ALLGERO_POSITION_COMMANDED, q_des_hand);
 	// setup data logging
 	string folder = "../../02-dual_proxy_motion_normal_force_robot/data_logging/data/";
 	string filename = "data";
@@ -393,6 +400,13 @@ int main() {
 			// remember values
             prev_desired_force = desired_force;
 		}
+
+		if (activeStateString == "PREGRASP")
+			q_des_hand << 0.11, 0.34, 1.3, 1, 0.05, 0.43, 1.1, 1.3, -0.051, 0.46, 0.98, 1.2, 1.4, 0.075, 0.04, 1.6;
+		if (activeStateString == "TOUCH")
+			q_des_hand << 0.12, 0.53, 1.4, 0.88, 0.15, 0.67, 1.1, 1.1, -0.047, 0.46, 0.98, 1.2, 1.4, 0.076, 0.24, 1.3;
+		if (activeStateString == "GRASP")
+			q_des_hand << 0.062, 0.52, 1.4, 0.88, 0.21, 0.66, 1.1, 1.1, -0.052, 0.46, 0.98, 1.2,  1.4, 0.1, 0.45, 1.2;
 
 		// write control torques and dual proxy variables
 		robot->position(haptic_proxy, link_name, pos_in_link);
