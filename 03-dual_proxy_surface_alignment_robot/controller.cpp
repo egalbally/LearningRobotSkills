@@ -193,9 +193,9 @@ int main() {
     bool first_loop = true;
 
     if(!flag_simulation) {
-        force_bias << -0.0448175, 1.88045, -1.76062, -0.0733607, 0.392116, 0.0397938;
-        tool_mass = 0.366843;
-        tool_com = Vector3d(0.000607626, -0.00030761, 0.0402244);
+        force_bias << -3.33157, 2.53329, 1.64766, -0.0258784, 0.270919, -0.000183827;
+        tool_mass = 0.09581;
+        tool_com = Vector3d(-0.0014956, 0.00186489, -0.0097027);
     }
 
     // remove inertial forces from tool
