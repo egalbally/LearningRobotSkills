@@ -42,5 +42,5 @@
 *.user
 
 # Mac crap
-.DS_Store
+*.DS_Store
 
