@@ -16,6 +16,36 @@
 #include <queue>
 
 #include <signal.h>
+
+/**
+ * @struct Object
+ * Represents an object within the simulation environment.
+ */
+struct Object 
+{
+    /** The object name (e.g. "box") which also defines its shape */
+    std::string name;
+
+    /** The object position wrt world frame */
+    Vector3d position;
+
+    /** The object orientation wrt world frame */
+    Quaterniond orientation;
+
+    /**
+     * Creates an object instance with the specified name, position, and orientation
+     * in the world frame.
+     * 
+     * @param name The object name
+     * @param pos  The object position wrt world
+     * @param ori  The object orientation wrt world
+     */
+    Object(const std::string& name, const Vector3d& pos, const Quaterniond& ori) 
+        : name(name), position(pos), orientation(ori)
+    {
+    }
+};
+
 bool fSimulationRunning = false;
 void sighandler(int){fSimulationRunning = false;}
 
@@ -30,16 +60,25 @@ const string camera_name = "camera";
 const string link_name = "end_effector"; //robot end-effector
 
 
-
 // redis keys:
 string JOINT_ANGLES_KEY = "sai2::HapticApplications::02::simviz::sensors::q";
 string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::02::simviz::sensors::dq";
 string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::02::simviz::actuators::tau_cmd";
-
 string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02::simviz::sensors::sensed_force";
-string ALLGERO_TORQUE_COMMANDED = "allegroHand::controller::joint_torques_commanded";
+string ALLEGRO_TORQUE_COMMANDED = "LearningSkills::02::simviz::allegroHand::joint_torques_commanded";
+string ALLEGRO_POSITION_COMMANDED = "LearningSkills::02::simviz::allegroHand::joint_positions_commanded";
 
 RedisClient redis_client;
+std::vector<Object> objects;
+
+/**
+ * Creates all objects that should be placed within the simulation and adds
+ * them to the global vector @a objects.
+ */
+void initialize_objects()
+{
+    objects.push_back(Object("box", Vector3d::Zero(), Quaterniond::Identity()));
+};
 
 // simulation function prototype
 void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, ForceSensorSim* force_sensor);
@@ -97,6 +136,14 @@ int main() {
 	sim->getJointVelocities(robot_name, robot->_dq);
 	robot->updateModel();
 
+	// read objects initial positions
+    initialize_objects();
+
+    for (Object& obj : objects)
+    {
+        sim->getObjectPosition(obj.name, obj.position, obj.orientation);
+    }
+
 	// Add force sensor to the end-effector
 	Affine3d sensor_transform_in_link = Affine3d::Identity();
     const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.034);
@@ -151,6 +198,12 @@ int main() {
 		int width, height;
 		glfwGetFramebufferSize(window, &width, &height);
 		graphics->updateGraphics(robot_name, robot);
+		
+		for (Object& obj : objects)
+        {
+            graphics->updateObjectGraphics(obj.name, obj.position, obj.orientation);
+        }
+
 		graphics->render(camera_name, width, height);
 
 		// swap buffers
@@ -249,23 +302,44 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 
 	int dof = robot->dof();
 	VectorXd command_torques = VectorXd::Zero(dof);
-	redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
+	VectorXd g = VectorXd::Zero(dof);
+	VectorXd control_torque = VectorXd::Zero(dof);
+	VectorXd q = VectorXd::Zero(dof);
+	VectorXd dq = VectorXd::Zero(dof);
+	VectorXd q_des = VectorXd::Zero(16);
+	VectorXd q_init = VectorXd::Zero(dof);
+	VectorXd command_torques_robot = VectorXd::Zero(7);
+
+	redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques_robot);
+	redis_client.setEigenMatrixJSON(ALLEGRO_POSITION_COMMANDED, q_des);
+
+	double kv = 20;
+	// hand mode
+	string hand_control_mode = "p";    // t for torque, p for position
 
 	// sensed force
 	Vector3d sensed_force = Vector3d::Zero();
 	Vector3d sensed_moment = Vector3d::Zero();
 	VectorXd sensed_force_moment = VectorXd::Zero(6);
-	VectorXd allegro_tau = VectorXd::Zero(16);
+
+	VectorXd command_torques_hand = VectorXd::Zero(16);
+	
+	VectorXd robot_q = VectorXd::Zero(7);
+	VectorXd robot_dq = VectorXd::Zero(7);
+
+	robot_q << robot->_q(0), robot->_q(1), robot->_q(2), robot->_q(3), robot->_q(4), robot->_q(5), robot->_q(6);
+	robot_dq << robot->_dq(0), robot->_dq(1), robot->_dq(2), robot->_dq(3), robot->_dq(4), robot->_dq(5), robot->_dq(6);
 
 	// redis communication
 	redis_client.createReadCallback(0);
-	redis_client.addEigenToReadCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
+	redis_client.addEigenToReadCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques_robot);
+	redis_client.addEigenToReadCallback(0, ALLEGRO_POSITION_COMMANDED, q_des);
 
 	redis_client.createWriteCallback(0);
-	redis_client.addEigenToWriteCallback(0, JOINT_ANGLES_KEY, robot->_q);
-	redis_client.addEigenToWriteCallback(0, JOINT_VELOCITIES_KEY, robot->_dq);
+	redis_client.addEigenToWriteCallback(0, JOINT_ANGLES_KEY, robot_q);
+	redis_client.addEigenToWriteCallback(0, JOINT_VELOCITIES_KEY, robot_dq);
 	redis_client.addEigenToWriteCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment);
-	redis_client.addEigenToWriteCallback(0, ALLGERO_TORQUE_COMMANDED, allegro_tau);
+	redis_client.addEigenToWriteCallback(0, ALLEGRO_TORQUE_COMMANDED, command_torques_hand);
 
 	// create a timer
 	double sim_frequency = 2000.0;
@@ -276,14 +350,59 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 	bool fTimerDidSleep = true;
 
 	unsigned long long simulation_counter = 0;
+	VectorXd allegro_tau_gravity = VectorXd::Zero(23);
+
+	// for default pd controller
+	double kp_default[] = {
+		1.6, 1.6, 1.6, 1.6,
+		1.6, 1.6, 1.6, 1.3,
+		1.6, 1.6, 1.6, 1.6,
+		1.6, 1.6, 1.6, 1.6
+	};
+	double kv_default[] = {
+		0.03, 0.03, 0.03, 0.03,
+		0.03, 0.03, 0.03, 0.03,
+		0.03, 0.03, 0.03, 0.03,
+		0.03, 0.03, 0.03, 0.03
+	};
+
+	q_init = robot->_q;
 
 	while (fSimulationRunning) {
 		fTimerDidSleep = timer.waitForNextLoop();
 
 		// particle pos from controller
 		redis_client.executeReadCallback(0);
-		allegro_tau << command_torques(7), command_torques(8), command_torques(9), command_torques(10),command_torques(11),command_torques(12),command_torques(13),command_torques(14),command_torques(15),command_torques(16),command_torques(17),command_torques(18),command_torques(19),command_torques(20),command_torques(21),command_torques(22);
-		sim->setJointTorques(robot_name, command_torques);
+		
+		robot->gravityVector(g);
+		allegro_tau_gravity = g - robot->_M * (kv * robot->_dq);
+		q = robot->_q;
+		dq = robot->_dq;
+		
+		// FIX if wanting to simulate the hand 
+		// simviz shouldn't compute it's own torques. Simply add gravity compensation 
+		// to the torques coming from the controller. The controller sets the hand control mode too.
+		// // compute joint torques
+		// command_torques << command_torques_robot, command_torques_hand;
+		// for (int i = 7; i < 23; i++)  
+		// {
+		// 	if(hand_control_mode == "t")
+		// 	{
+		// 		command_torques[i] += allegro_tau_gravity[i];
+		// 	}
+		// 	else if(hand_control_mode == "p")
+		// 	{
+		// 		control_torque[i] = -kp_default[i-7]*(q[i]-q_des[i-7]) - kv_default[i-7]*dq[i];
+		// 		command_torques[i] = control_torque[i] + allegro_tau_gravity[i];
+		// 	}
+		// 	else
+		// 	{
+		// 		command_torques[i] = allegro_tau_gravity[i];
+		// 	}
+		// }
+
+		// command_torques_hand << command_torques(7), command_torques(8), command_torques(9), command_torques(10),command_torques(11),command_torques(12),command_torques(13),command_torques(14),command_torques(15),command_torques(16),command_torques(17),command_torques(18),command_torques(19),command_torques(20),command_torques(21),command_torques(22);
+		// sim->setJointTorques(robot_name, command_torques);
 
 		// integrate forward
 		sim->integrate(1.0/sim_frequency);
@@ -299,6 +418,14 @@ void simulation(Sai2Model::Sai2Model* robot, Simulation::Sai2Simulation* sim, Fo
 		force_sensor->getMomentLocalFrame(sensed_moment);
 		sensed_force_moment << -sensed_force, -sensed_moment;
 		
+		// get object positions from simulation
+        for (Object& obj : objects)
+        {
+            sim->getObjectPosition(obj.name, obj.position, obj.orientation);
+        }
+
+        robot_q << robot->_q(0), robot->_q(1), robot->_q(2), robot->_q(3), robot->_q(4), robot->_q(5), robot->_q(6);
+		robot_dq << robot->_dq(0), robot->_dq(1), robot->_dq(2), robot->_dq(3), robot->_dq(4), robot->_dq(5), robot->_dq(6);
 		redis_client.executeWriteCallback(0);
 
 		simulation_counter++;
