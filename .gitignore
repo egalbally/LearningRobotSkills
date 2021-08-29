@@ -41,3 +41,6 @@
 # User files
 *.user
 
+# Mac crap
+.DS_Store
+
