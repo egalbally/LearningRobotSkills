@@ -194,6 +194,7 @@ int main() {
 				}
 				else
 				{
+					joint_task->_desired_position = initial_q; //return to home position and finish calibration
 					cout << "bias calibration finished" << endl;
 					runloop = false;
 				}
