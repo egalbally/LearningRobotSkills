@@ -17,6 +17,12 @@ void sighandler(int sig)
 #define MEASURE 	0 // take measurements for calibration
 #define HOME 		1 // return to home position when measurements are done
 
+// robot being used
+#define BONNIE 	11
+#define CLYDE   10
+
+int robot_in_use = BONNIE;
+
 using namespace std;
 using namespace Eigen;
 
@@ -57,27 +63,47 @@ int main(int argc, char** argv)
 	const string calibration_file_name = "../../00-force_sensor_calibration/calibration_files/" + calibration_file_name_tmp + ".xml";
 	string tool_name = "tool";
 
-	// JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::actuators::fgc";
+	if (robot_in_use == BONNIE)
+	{
+		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Bonnie::actuators::fgc";
 
-	// JOINT_ANGLES_KEY  = "sai2::FrankaPanda::sensors::q";
-	// JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::sensors::dq";
-	// JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::sensors::torques";
-	// MASSMATRIX_KEY = "sai2::FrankaPanda::sensors::model::massmatrix";
-	// CORIOLIS_KEY = "sai2::FrankaPanda::sensors::model::coriolis";
-	// ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::sensors::model::robot_gravity";		
+		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Bonnie::sensors::q";
+		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::Bonnie::sensors::dq";
+		JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::Bonnie::sensors::torques";
+		MASSMATRIX_KEY = "sai2::FrankaPanda::Bonnie::sensors::model::massmatrix";
+		CORIOLIS_KEY = "sai2::FrankaPanda::Bonnie::sensors::model::coriolis";
+		ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::Bonnie::sensors::model::robot_gravity";		
 
-	// FORCE_SENSED_KEY = "sai2::ATIGamma_Sensor::force_torque";
+		FORCE_SENSED_KEY = "sai2::ATIGamma_Sensor::Bonnie::force_torque";		
+	}
 
-	JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Clyde::actuators::fgc";
+	else if (robot_in_use == CLYDE)
+	{	
+		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Clyde::actuators::fgc";
 
-	JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Clyde::sensors::q";
-	JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::Clyde::sensors::dq";
-	JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::Clyde::sensors::torques";
-	MASSMATRIX_KEY = "sai2::FrankaPanda::Clyde::sensors::model::massmatrix";
-	CORIOLIS_KEY = "sai2::FrankaPanda::Clyde::sensors::model::coriolis";
-	ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::Clyde::sensors::model::robot_gravity";		
+		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Clyde::sensors::q";
+		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::Clyde::sensors::dq";
+		JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::Clyde::sensors::torques";
+		MASSMATRIX_KEY = "sai2::FrankaPanda::Clyde::sensors::model::massmatrix";
+		CORIOLIS_KEY = "sai2::FrankaPanda::Clyde::sensors::model::coriolis";
+		ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::Clyde::sensors::model::robot_gravity";		
 
-	FORCE_SENSED_KEY = "sai2::ATIGamma_Sensor::Clyde::force_torque";
+		FORCE_SENSED_KEY = "sai2::ATIGamma_Sensor::Clyde::force_torque";
+	}
+
+	else //default keys
+	{
+		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::actuators::fgc";
+
+		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::sensors::q";
+		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::sensors::dq";
+		JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::sensors::torques";
+		MASSMATRIX_KEY = "sai2::FrankaPanda::sensors::model::massmatrix";
+		CORIOLIS_KEY = "sai2::FrankaPanda::sensors::model::coriolis";
+		ROBOT_GRAVITY_KEY = "sai2::FrankaPanda::sensors::model::robot_gravity";		
+
+		FORCE_SENSED_KEY = "sai2::ATIGamma_Sensor::force_torque";
+	}
 
 	// start redis client
 	auto redis_client = RedisClient();
@@ -97,7 +123,7 @@ int main(int argc, char** argv)
 	auto robot = new Sai2Model::Sai2Model(robot_file, false);
 	robot->_q = redis_client.getEigenMatrixJSON(JOINT_ANGLES_KEY);
 	VectorXd initial_q = robot->_q;
-	VectorXd initial_q_desired;
+	VectorXd initial_q_desired = VectorXd::Zero(7);
 	initial_q_desired << 0, 30, 90, -90, -30, 90, 0;
 	initial_q_desired = M_PI/180.0 * initial_q_desired;
 	robot->updateModel();
