@@ -37,6 +37,12 @@ string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02::simviz::sensors::
 string MASSMATRIX_KEY;
 string CORIOLIS_KEY;
 
+// posori task state information
+string ROBOT_EE_POS_KEY = "sai2::HapticApplications::02::simviz::ee_pos";
+string ROBOT_EE_ORI_KEY = "sai2::HapticApplications::02::simviz::ee_ori";
+string ROBOT_EE_FORCE_KEY = "sai2::HapticApplications::02::simviz::ee_force";
+string ROBOT_EE_MOMENT_KEY = "sai2::HapticApplications::02::simviz::ee_moment";
+
 // dual proxy
 string ROBOT_PROXY_KEY = "sai2::HapticApplications::02::dual_proxy::robot_proxy";
 string ROBOT_PROXY_ROT_KEY = "sai2::HapticApplications::02::dual_proxy::robot_proxy_rot";
@@ -52,6 +58,7 @@ string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::02::dual_proxy::contr
 // allegro hand keys
 // read (from user)
 string ALLEGRO_PREDEFINED_GRASP = "LearningSkills::02::allegroHand::predefined_grasp";
+
 // write
 string ALLEGRO_TORQUE_COMMANDED = "LearningSkills::02::simviz::allegroHand::joint_torques_commanded";
 string ALLEGRO_POSITION_COMMANDED = "LearningSkills::02::simviz::allegroHand::joint_positions_commanded";
@@ -258,6 +265,13 @@ int main() {
 	redis_client.addIntToWriteCallback(0, FORCE_SPACE_DIMENSION_KEY, force_space_dimension);
 
 	redis_client.addEigenToWriteCallback(0, ALLEGRO_POSITION_COMMANDED, q_des_hand);
+
+	// write internal controller state to redis
+	redis_client.addEigenToWriteCallback(0, ROBOT_EE_POS_KEY, posori_task->_current_position);
+	redis_client.addEigenToWriteCallback(0, ROBOT_EE_ORI_KEY, posori_task->_current_orientation);
+	redis_client.addEigenToWriteCallback(0, ROBOT_EE_FORCE_KEY, posori_task->_sensed_force);
+	redis_client.addEigenToWriteCallback(0, ROBOT_EE_MOMENT_KEY, posori_task->_sensed_moment);
+
 	// setup data logging
 	string folder = "../../02-dual_proxy_motion_normal_force_robot/data_logging/data/";
 	string filename = "data";
@@ -272,6 +286,11 @@ int main() {
 	VectorXd log_sensed_force_moments = VectorXd::Zero(6);
     Vector3d log_desired_force = Vector3d::Zero();
 
+    Matrix3d log_robot_ee_orientation = posori_task->_current_orientation; // TODO: add to logger
+
+    Vector3d log_posori_sensed_force = Vector3d::Zero();
+    Vector3d log_posori_sensed_moment = Vector3d::Zero();
+
 	logger->addVectorToLog(&log_robot_ee_position, "robot_ee_position");
 	logger->addVectorToLog(&log_robot_ee_velocity, "robot_ee_velocity");
 	logger->addVectorToLog(&log_robot_proxy_position, "robot_proxy_position");
@@ -280,6 +299,9 @@ int main() {
 	logger->addVectorToLog(&log_joint_command_torques, "joint_command_torques");
 	logger->addVectorToLog(&log_sensed_force_moments, "sensed_forces_moments");
     logger->addVectorToLog(&log_desired_force, "desired_force");
+
+    logger->addVectorToLog(&log_posori_sensed_force, "posori_sensed_force");
+    logger->addVectorToLog(&log_posori_sensed_moment, "posori_sensed_moment");
 
 	logger->start();
 
@@ -456,6 +478,9 @@ int main() {
 		log_joint_command_torques = command_torques;
 		log_sensed_force_moments = sensed_force_moment_world_frame;
         log_desired_force = posori_task->_desired_force;
+
+        log_posori_sensed_force = posori_task->_sensed_force;
+        log_posori_sensed_moment = posori_task->_sensed_moment;
 	
 		controller_counter++;
 	}
