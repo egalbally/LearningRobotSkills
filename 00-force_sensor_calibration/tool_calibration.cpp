@@ -13,6 +13,10 @@ bool runloop = true;
 void sighandler(int sig)
 { runloop = false; }
 
+// controller states
+#define MEASURE 	0 // take measurements for calibration
+#define HOME 		1 // return to home position when measurements are done
+
 using namespace std;
 using namespace Eigen;
 
@@ -92,7 +96,8 @@ int main(int argc, char** argv)
 	// load robots
 	auto robot = new Sai2Model::Sai2Model(robot_file, false);
 	robot->_q = redis_client.getEigenMatrixJSON(JOINT_ANGLES_KEY);
-	VectorXd initial_q_desired = robot->_q;
+	VectorXd initial_q = robot->_q;
+	VectorXd initial_q_desired;
 	initial_q_desired << 0, 30, 90, -90, -30, 90, 0;
 	initial_q_desired = M_PI/180.0 * initial_q_desired;
 	robot->updateModel();
@@ -113,6 +118,9 @@ int main(int argc, char** argv)
 	joint_task->_ki = 300.0;
 	joint_task->_kp = 400.0;
 	joint_task->_kv = 25.0;
+
+	// init controller state to start measurements
+	int state = MEASURE;
 
 	// prepare successive positions
 	VectorXd q_desired = initial_q_desired;
@@ -197,48 +205,61 @@ int main(int argc, char** argv)
 
 		// cout << (joint_task->_current_position - joint_task->_desired_position).norm() << endl;
 
-		if((joint_task->_current_position - joint_task->_desired_position).norm() < 0.015)
+		if(state == MEASURE)
 		{
-			measurement_counter--;
-
-			if(measurement_counter > measurement_total_length/4.0 && measurement_counter < measurement_total_length/4.0*3.0)
+			if((joint_task->_current_position - joint_task->_desired_position).norm() < 0.015)
 			{
-				mean_force -= current_force_sensed.head(3);   // the driver gives the force and moment applied by the sensor to the environment
-				mean_moment -= current_force_sensed.tail(3);
-			}
+				measurement_counter--;
 
-			if(measurement_counter == 0)
+				if(measurement_counter > measurement_total_length/4.0 && measurement_counter < measurement_total_length/4.0*3.0)
+				{
+					mean_force -= current_force_sensed.head(3);   // the driver gives the force and moment applied by the sensor to the environment
+					mean_moment -= current_force_sensed.tail(3);
+				}
+
+				if(measurement_counter == 0)
+				{
+					Eigen::Matrix3d R;
+					robot->rotation(R,"link7");
+					R = R * R_link_sensor;
+
+					mean_force /= (measurement_total_length/2);
+					mean_moment /= (measurement_total_length/2);
+					double current_mass = (double) (world_gravity.transpose() * R * mean_force) / g2;
+					estimated_mass += current_mass;
+
+					local_moments.segment<3>(3*(measurement_number)) = mean_moment;
+					local_gravity = R.transpose() * world_gravity;
+					local_gravities_cross.block(3*(measurement_number),0,3,3) = Sai2Model::CrossProductOperator(local_gravity);
+
+					cout << "move to point " << measurement_number+1 << endl;
+
+					measurement_number++;
+					if(measurement_number < n_measure_points)
+					{
+						joint_task->_desired_position.tail(3) += last_joint_positions_increment[measurement_number]; 
+						measurement_counter = measurement_total_length;
+						mean_force.setZero();
+						mean_moment.setZero();
+					}
+					else
+					{
+						cout << "bias calibration finished" << endl;
+						
+						// move robot back to home position
+						joint_task->_desired_position = initial_q_desired;
+						state = HOME;
+					}
+				}
+			}
+		}
+		if(state == HOME)
+		{
+			// stop controller when robot returns to home position
+			if((joint_task->_current_position - joint_task->_desired_position).norm() < 0.015)
 			{
-				Eigen::Matrix3d R;
-				robot->rotation(R,"link7");
-				R = R * R_link_sensor;
-
-				mean_force /= (measurement_total_length/2);
-				mean_moment /= (measurement_total_length/2);
-				double current_mass = (double) (world_gravity.transpose() * R * mean_force) / g2;
-				estimated_mass += current_mass;
-
-				local_moments.segment<3>(3*(measurement_number)) = mean_moment;
-				local_gravity = R.transpose() * world_gravity;
-				local_gravities_cross.block(3*(measurement_number),0,3,3) = Sai2Model::CrossProductOperator(local_gravity);
-
-				cout << "move to point " << measurement_number+1 << endl;
-
-				measurement_number++;
-				if(measurement_number < n_measure_points)
-				{
-					joint_task->_desired_position.tail(3) += last_joint_positions_increment[measurement_number]; 
-					measurement_counter = measurement_total_length;
-					mean_force.setZero();
-					mean_moment.setZero();
-				}
-				else
-				{
-					cout << "bias calibration finished" << endl;
-					runloop = false;
-				}
+				runloop = false;
 			}
-
 		}
 
 		controller_counter++;

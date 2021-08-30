@@ -12,6 +12,10 @@ bool runloop = true;
 void sighandler(int sig)
 { runloop = false; }
 
+// controller states
+#define MEASURE 	0 // take measurements for calibration
+#define HOME 		1 // return to home position when measurements are done
+
 using namespace std;
 using namespace Eigen;
 
@@ -101,6 +105,9 @@ int main() {
 	joint_task->_kp = 400.0;
 	joint_task->_kv = 25.0;
 
+	// init controller state to start measurements
+	int state = MEASURE;
+
 	// prepare successive positions
 	vector<VectorXd> q_desired;
 	for(int i=0 ; i<6 ; i++)
@@ -172,34 +179,46 @@ int main() {
 
 		// cout << (joint_task->_current_position - joint_task->_desired_position).norm() << endl;
 
-		if((joint_task->_current_position - joint_task->_desired_position).norm() < 0.015)
+		if(state == MEASURE)
 		{
-			measurement_counter--;
-
-			if(measurement_counter > measurement_total_length/4.0 && measurement_counter < measurement_total_length/4.0*3.0)
+			if((joint_task->_current_position - joint_task->_desired_position).norm() < 0.015)
 			{
-				current_force_measurement += current_force_sensed;
-			}
+				measurement_counter--;
 
-			if(measurement_counter == 0)
+				if(measurement_counter > measurement_total_length/4.0 && measurement_counter < measurement_total_length/4.0*3.0)
+				{
+					current_force_measurement += current_force_sensed;
+				}
+
+				if(measurement_counter == 0)
+				{
+					bias_force += current_force_measurement*2.0/measurement_total_length;
+					current_force_measurement.setZero();
+
+					measurement_number++;
+					if(measurement_number < 6)
+					{
+						joint_task->_desired_position = q_desired[measurement_number];
+						measurement_counter = measurement_total_length;
+					}
+					else
+					{
+						cout << "bias calibration finished" << endl;
+
+						// move robot back to home position
+						joint_task->_desired_position = initial_q;
+						state = HOME;
+					}
+				}
+			}
+		}
+		if(state == HOME)
+		{
+			// stop controller when robot returns to home position
+			if((joint_task->_current_position - joint_task->_desired_position).norm() < 0.015)
 			{
-				bias_force += current_force_measurement*2.0/measurement_total_length;
-				current_force_measurement.setZero();
-
-				measurement_number++;
-				if(measurement_number < 6)
-				{
-					joint_task->_desired_position = q_desired[measurement_number];
-					measurement_counter = measurement_total_length;
-				}
-				else
-				{
-					joint_task->_desired_position = initial_q; //return to home position and finish calibration
-					cout << "bias calibration finished" << endl;
-					runloop = false;
-				}
+				runloop = false;
 			}
-
 		}
 
 		controller_counter++;
