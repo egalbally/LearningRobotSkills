@@ -86,16 +86,16 @@ vector<string> DEVICE_SENSED_TORQUE_KEYS = {
 	};
 
 // dual proxy
-string ROBOT_PROXY_KEY = "sai2::HapticApplications::02::dual_proxy::robot_proxy";
-string HAPTIC_PROXY_KEY = "sai2::HapticApplications::02::dual_proxy::haptic_proxy";
-string FORCE_SPACE_DIMENSION_KEY = "sai2::HapticApplications::02::dual_proxy::force_space_dimension";
-string SIGMA_FORCE_KEY = "sai2::HapticApplications::02::dual_proxy::sigma_force";
-string ROBOT_PROXY_ROT_KEY = "sai2::HapticApplications::02::dual_proxy::robot_proxy_rot";
-string ROBOT_DEFAULT_ROT_KEY = "sai2::HapticApplications::02::dual_proxy::robot_default_rot";
-string ROBOT_DEFAULT_POS_KEY = "sai2::HapticApplications::02::dual_proxy::robot_default_pos";
+string ROBOT_PROXY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_proxy";
+string HAPTIC_PROXY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::haptic_proxy";
+string FORCE_SPACE_DIMENSION_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::force_space_dimension";
+string SIGMA_FORCE_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::sigma_force";
+string ROBOT_PROXY_ROT_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_proxy_rot";
+string ROBOT_DEFAULT_ROT_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_default_rot";
+string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_default_pos";
 
-string HAPTIC_DEVICE_READY_KEY = "sai2::HapticApplications::02::dual_proxy::haptic_device_ready";
-string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::02::dual_proxy::controller_running";
+string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::haptic_device_ready";
+string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::controller_running";
 
 int haptic_device_ready = 0;
 int force_space_dimension = 0;

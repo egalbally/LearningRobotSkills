@@ -1,5 +1,5 @@
 # create an executable
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${HAPTIC_APPLICATIONS_BINARY_DIR}/00-force_sensor_calibration)
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${HAPTIC_APPLICATIONS_BINARY_DIR}/force_sensor_calibration)
 ADD_EXECUTABLE (bias_measurement bias_measurement.cpp ${HAPTIC_APPLICATIONS_COMMON_SOURCE})
 ADD_EXECUTABLE (tool_calibration tool_calibration.cpp ${HAPTIC_APPLICATIONS_COMMON_SOURCE})
 

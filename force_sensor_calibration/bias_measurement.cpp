@@ -6,7 +6,6 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <tinyxml2.h>
 
 #include <signal.h>
 bool runloop = true;
@@ -29,7 +28,7 @@ using namespace Eigen;
 const string robot_file = "./resources/panda_arm.urdf";
 const string robot_name = "panda";
 
-const string bias_file_name = "../../00-force_sensor_calibration/calibration_files/sensor_bias.xml";
+const string bias_file_name = "../../force_sensor_calibration/calibration_files/sensor_bias.xml";
 
 // redis keys:
 // - read:
@@ -46,22 +45,11 @@ string MASSMATRIX_KEY;
 string CORIOLIS_KEY;
 string ROBOT_GRAVITY_KEY;
 
-VectorXd readBiasXML(const string path_to_bias_file);
-void writeCalibrationXml(const string file_name, const string tool_name, const Vector3d object_com, const double object_mass);
+void writeXml(const string file_name, const VectorXd sensor_bias);
 
 unsigned long long controller_counter = 0;
 
-int main(int argc, char** argv) 
-{
-
-	if(argc < 2)
-	{
-	    std::cout << "Usage :\n./tool_calibration [calibration_file_name]" << std::endl;
-	    return 0;
-	}
-	const string calibration_file_name_tmp = argv[1];
-	const string calibration_file_name = "../../00-force_sensor_calibration/calibration_files/" + calibration_file_name_tmp + ".xml";
-	string tool_name = "tool";
+int main() {
 
 	if (robot_in_use == BONNIE)
 	{
@@ -123,9 +111,6 @@ int main(int argc, char** argv)
 	auto robot = new Sai2Model::Sai2Model(robot_file, false);
 	robot->_q = redis_client.getEigenMatrixJSON(JOINT_ANGLES_KEY);
 	VectorXd initial_q = robot->_q;
-	VectorXd initial_q_desired = VectorXd::Zero(7);
-	initial_q_desired << 0, 30, 90, -90, -30, 90, 0;
-	initial_q_desired = M_PI/180.0 * initial_q_desired;
 	robot->updateModel();
 
 	// prepare controller	
@@ -149,52 +134,41 @@ int main(int argc, char** argv)
 	int state = MEASURE;
 
 	// prepare successive positions
-	VectorXd q_desired = initial_q_desired;
+	vector<VectorXd> q_desired;
+	for(int i=0 ; i<6 ; i++)
+	{
+		q_desired.push_back(VectorXd::Zero(dof));
+	}
 
-	vector<Vector3d> last_joint_positions_increment;
+	VectorXd q_des_degrees = VectorXd::Zero(dof);
 
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(-90.0, -45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, 45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, 45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(45.0, 0.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, -45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, -45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(45.0, 0.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, 45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, 45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(45.0, 0.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, -45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, -45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(45.0, 0.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, 45.0, 0.0));
-	last_joint_positions_increment.push_back(M_PI/180.0*Vector3d(0.0, 45.0, 0.0));
+	q_des_degrees << 0, 30, 90, -90, -30, 90, 0;
+	q_desired[0] = M_PI/180.0 * q_des_degrees; 
+
+	q_des_degrees << 0, 30, 90, -90, 60, 90, -135;
+	q_desired[1] = M_PI/180.0 * q_des_degrees; 
+
+	q_des_degrees << 0, 30, 90, -90, 60, 90, -45;
+	q_desired[2] = M_PI/180.0 * q_des_degrees; 
+
+	q_des_degrees << 0, 30, 90, -90, 60, 90, 45;
+	q_desired[3] = M_PI/180.0 * q_des_degrees; 
+
+	q_des_degrees << 0, 30, 90, -90, 60, 90, 135;
+	q_desired[4] = M_PI/180.0 * q_des_degrees; 
+
+	q_des_degrees << 0, 30, 90, -90, 150, 90, 0;
+	q_desired[5] = M_PI/180.0 * q_des_degrees; 
 
 	int measurement_number = 0;
+	joint_task->_desired_position = q_desired[measurement_number];
 	const int measurement_total_length = 1000;
 	int measurement_counter = measurement_total_length;
 
-	joint_task->_desired_position = q_desired;
-	joint_task->_desired_position.tail(3) += last_joint_positions_increment[measurement_number]; 
-
-	// calibration quantities
-	VectorXd bias_force = readBiasXML(bias_file_name);
+	// force readings
+	VectorXd bias_force = VectorXd::Zero(6);
+	VectorXd current_force_measurement = VectorXd::Zero(6);
 	VectorXd current_force_sensed = VectorXd::Zero(6);
-
-	// return 0;
-
-	Matrix3d R_link_sensor = Matrix3d::Identity();
-
-	Vector3d mean_force = Vector3d::Zero();
-	Vector3d mean_moment = Vector3d::Zero();
-
-	int n_measure_points = last_joint_positions_increment.size();
-	MatrixXd local_gravities_cross = MatrixXd(3*n_measure_points, 3);
-	VectorXd local_moments = VectorXd(3*n_measure_points);
-	Vector3d local_gravity = Vector3d::Zero();
-	Vector3d world_gravity = Vector3d(0.0, 0.0, -9.81);
-	double g2 = world_gravity.transpose() * world_gravity;
-	double estimated_mass = 0;
-	Vector3d estimated_com = Vector3d::Zero();
 
 	// create a timer
 	LoopTimer timer;
@@ -212,13 +186,12 @@ int main(int argc, char** argv)
 		robot->_q = redis_client.getEigenMatrixJSON(JOINT_ANGLES_KEY);
 		robot->_dq = redis_client.getEigenMatrixJSON(JOINT_VELOCITIES_KEY);
 		current_force_sensed = redis_client.getEigenMatrixJSON(FORCE_SENSED_KEY);
-		current_force_sensed -= bias_force;
 
 		// update model
 		robot->updateKinematics();
 		robot->_M = redis_client.getEigenMatrixJSON(MASSMATRIX_KEY);
 		robot->updateInverseInertia();
-			
+		
 		joint_task->updateTaskModel(N_prec);
 
 		// compute torques
@@ -239,41 +212,26 @@ int main(int argc, char** argv)
 
 				if(measurement_counter > measurement_total_length/4.0 && measurement_counter < measurement_total_length/4.0*3.0)
 				{
-					mean_force -= current_force_sensed.head(3);   // the driver gives the force and moment applied by the sensor to the environment
-					mean_moment -= current_force_sensed.tail(3);
+					current_force_measurement += current_force_sensed;
 				}
 
 				if(measurement_counter == 0)
 				{
-					Eigen::Matrix3d R;
-					robot->rotation(R,"link7");
-					R = R * R_link_sensor;
-
-					mean_force /= (measurement_total_length/2);
-					mean_moment /= (measurement_total_length/2);
-					double current_mass = (double) (world_gravity.transpose() * R * mean_force) / g2;
-					estimated_mass += current_mass;
-
-					local_moments.segment<3>(3*(measurement_number)) = mean_moment;
-					local_gravity = R.transpose() * world_gravity;
-					local_gravities_cross.block(3*(measurement_number),0,3,3) = Sai2Model::CrossProductOperator(local_gravity);
-
-					cout << "move to point " << measurement_number+1 << endl;
+					bias_force += current_force_measurement*2.0/measurement_total_length;
+					current_force_measurement.setZero();
 
 					measurement_number++;
-					if(measurement_number < n_measure_points)
+					if(measurement_number < 6)
 					{
-						joint_task->_desired_position.tail(3) += last_joint_positions_increment[measurement_number]; 
+						joint_task->_desired_position = q_desired[measurement_number];
 						measurement_counter = measurement_total_length;
-						mean_force.setZero();
-						mean_moment.setZero();
 					}
 					else
 					{
 						cout << "bias calibration finished" << endl;
-						
+
 						// move robot back to home position
-						joint_task->_desired_position = initial_q_desired;
+						joint_task->_desired_position = initial_q;
 						state = HOME;
 					}
 				}
@@ -292,22 +250,12 @@ int main(int argc, char** argv)
 
 	}
 
+	bias_force = bias_force/6.0;
+	writeXml(bias_file_name, bias_force);
+	cout << "force bias :\n" << bias_force.transpose() << endl << endl;
+
 	command_torques.setZero();
 	redis_client.setEigenMatrixJSON(JOINT_TORQUES_COMMANDED_KEY, command_torques);
-
-	estimated_mass /= n_measure_points;
-
-	MatrixXd A = - estimated_mass * local_gravities_cross;
-	VectorXd b = local_moments;
-
-	estimated_com = A.colPivHouseholderQr().solve(b);
-
-	writeCalibrationXml(calibration_file_name, tool_name, estimated_com, estimated_mass);
-
-	cout << endl;
-	cout << "estimated mass : " << estimated_mass << endl;
-	cout << "estimated com : " << estimated_com.transpose() << endl;
-	cout << endl;
 
 	double end_time = timer.elapsedTime();
     cout << "\n";
@@ -319,62 +267,27 @@ int main(int argc, char** argv)
 	return 0;
 }
 
-void writeCalibrationXml(const string file_name, const string tool_name, const Vector3d object_com, const double object_mass)
+void writeXml(const string file_name, const VectorXd sensor_bias)
 {
-	cout << "write tool properties to file " << file_name << endl;
+	if(sensor_bias.size() != 6)
+	{
+		cout << "bias should be a vector of length 6\nXml file not written" << endl;
+		return;
+	}
+
+	cout << "write bias to file " << file_name << endl;
 
 	ofstream file;
 	file.open(file_name);
 
 	if(file.is_open())
 	{
-		file << "<?xml version=\"1.0\" ?>\n\n";
-		file << "<tool name=\"" << tool_name << "\">\n";
-		file << "\t<inertial>\n";
-		file << "\t\t<origin xyz=\"" << object_com.transpose() << "\" rpy=\"0 0 0\"/>\n";
-		file << "\t\t<mass value=\"" << object_mass << "\"/>\n";
-		file << "\t</inertial>\n";
-		file << "</tool>" << endl;
+		file << "<?xml version=\"1.0\" ?>\n";
+		file << "<force_bias value=\"" << sensor_bias.transpose() << "\"/>\n";
 		file.close();
 	}
 	else
 	{
 		cout << "could not create xml file" << endl;
 	}
-}
-
-VectorXd readBiasXML(const string path_to_bias_file)
-{
-	VectorXd sensor_bias = VectorXd::Zero(6);
-	tinyxml2::XMLDocument doc;
-	doc.LoadFile(path_to_bias_file.c_str());
-	if (!doc.Error())
-	{
-		cout << "Loading bias file file ["+path_to_bias_file+"]." << endl;
-		try 
-		{
-
-			std::stringstream bias( doc.FirstChildElement("force_bias")->
-				Attribute("value"));
-			bias >> sensor_bias(0);
-			bias >> sensor_bias(1);
-			bias >> sensor_bias(2);
-			bias >> sensor_bias(3);
-			bias >> sensor_bias(4);
-			bias >> sensor_bias(5);
-			std::stringstream ss; ss << sensor_bias.transpose();
-			cout << "Sensor bias : "+ss.str() << endl;
-		}
-		catch( const std::exception& e ) // reference to the base of a polymorphic object
-		{ 
-			std::cout << e.what(); // information from length_error printed
-			cout << "WARNING : Failed to parse bias file." << endl;
-		}
-	} 
-	else 
-	{
-		cout << "WARNING : Could no load bias file ["+path_to_bias_file+"]" << endl;
-		doc.PrintError();
-	}
-	return sensor_bias;
 }
