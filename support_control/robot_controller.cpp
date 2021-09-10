@@ -6,7 +6,6 @@
 #include "tasks/JointTask.h"
 #include "tasks/PosOriTask.h"
 #include "filters/ButterworthFilter.h"
-#include "../src/Logger.h"
 #include "perception/ForceSpaceParticleFilter.h"
 
 #include <iostream>
@@ -28,40 +27,23 @@ const string robot_file = "./resources/panda_arm.urdf";
 
 // redis keys:
 // robot local control loop
-string JOINT_ANGLES_KEY = "sai2::HapticApplications::02::simviz::sensors::q";
-string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::02::simviz::sensors::dq";
-string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::02::simviz::actuators::tau_cmd";
+string JOINT_ANGLES_KEY = "sai2::LearningSkills::support_control::simviz::sensors::q";
+string JOINT_VELOCITIES_KEY = "sai2::LearningSkills::support_control::simviz::sensors::dq";
+string ROBOT_COMMAND_TORQUES_KEY = "sai2::LearningSkills::support_control::simviz::actuators::tau_cmd";
 
-string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02::simviz::sensors::sensed_force";
+string ROBOT_SENSED_FORCE_KEY = "sai2::LearningSkills::support_control::simviz::sensors::sensed_force";
 
 string MASSMATRIX_KEY;
 string CORIOLIS_KEY;
 
-// posori task state information
-string ROBOT_EE_POS_KEY = "sai2::HapticApplications::02::simviz::ee_pos";
-string ROBOT_EE_ORI_KEY = "sai2::HapticApplications::02::simviz::ee_ori";
-string ROBOT_EE_FORCE_KEY = "sai2::HapticApplications::02::simviz::ee_force";
-string ROBOT_EE_MOMENT_KEY = "sai2::HapticApplications::02::simviz::ee_moment";
-
-// dual proxy
-string ROBOT_PROXY_KEY = "sai2::HapticApplications::02::dual_proxy::robot_proxy";
-string ROBOT_PROXY_ROT_KEY = "sai2::HapticApplications::02::dual_proxy::robot_proxy_rot";
-string HAPTIC_PROXY_KEY = "sai2::HapticApplications::02::dual_proxy::haptic_proxy";
-string FORCE_SPACE_DIMENSION_KEY = "sai2::HapticApplications::02::dual_proxy::force_space_dimension";
-string SIGMA_FORCE_KEY = "sai2::HapticApplications::02::dual_proxy::sigma_force";
-string ROBOT_DEFAULT_ROT_KEY = "sai2::HapticApplications::02::dual_proxy::robot_default_rot";
-string ROBOT_DEFAULT_POS_KEY = "sai2::HapticApplications::02::dual_proxy::robot_default_pos";
-
-string HAPTIC_DEVICE_READY_KEY = "sai2::HapticApplications::02::dual_proxy::haptic_device_ready";
-string CONTROLLER_RUNNING_KEY = "sai2::HapticApplications::02::dual_proxy::controller_running";
-
-// allegro hand keys
-// read (from user)
-string ALLEGRO_PREDEFINED_GRASP = "LearningSkills::02::allegroHand::predefined_grasp";
-
-// write
-string ALLEGRO_TORQUE_COMMANDED = "LearningSkills::02::simviz::allegroHand::joint_torques_commanded";
-string ALLEGRO_POSITION_COMMANDED = "LearningSkills::02::simviz::allegroHand::joint_positions_commanded";
+// posori task
+// read userparameters
+string ROBOT_EE_POS_DES_KEY = "sai2::LearningSkills::support_control::robot::ee_pos_des";
+// write state information
+string ROBOT_EE_POS_KEY = "sai2::LearningSkills::support_control::robot::ee_pos";
+string ROBOT_EE_ORI_KEY = "sai2::LearningSkills::support_control::robot::ee_ori";
+string ROBOT_EE_FORCE_KEY = "sai2::LearningSkills::support_control::robot::ee_force";
+string ROBOT_EE_MOMENT_KEY = "sai2::LearningSkills::support_control::robot::ee_moment";
 
 RedisClient redis_client;
 
@@ -110,8 +92,6 @@ int main() {
 		MASSMATRIX_KEY = "sai2::FrankaPanda::sensors::model::massmatrix";
 		CORIOLIS_KEY = "sai2::FrankaPanda::sensors::model::coriolis";
 		ROBOT_SENSED_FORCE_KEY = "sai2::ATIGamma_Sensor::force_torque";
-		ALLEGRO_TORQUE_COMMANDED = "allegroHand::controller::joint_torques_commanded";
-		ALLEGRO_POSITION_COMMANDED = "allegroHand::controller::joint_positions";
 	}
 
 	// start redis client local
@@ -155,24 +135,7 @@ int main() {
 	// posori task
 	// const string link_name = "end_effector";
 	// const Vector3d pos_in_link = Vector3d(0, 0, 0.12);
-	auto posori_task = new Sai2Primitives::PosOriTask(robot, link_name, pos_in_link);
-	Vector3d x_init = posori_task->_current_position;
-	Matrix3d R_init = posori_task->_current_orientation;
-	redis_client.setEigenMatrixJSON(ROBOT_PROXY_KEY, x_init);
-	redis_client.setEigenMatrixJSON(ROBOT_PROXY_ROT_KEY, R_init);
-	redis_client.setEigenMatrixJSON(HAPTIC_PROXY_KEY, x_init);
-	// compute expected default rotation to send to haptic
-    // robot->_q = q_init;
-    // robot->updateModel();
-	Matrix3d R_default = Matrix3d::Identity();
-	Vector3d pos_default = Vector3d::Zero();
-	robot->rotation(R_default, link_name);
-	robot->position(pos_default, link_name, pos_in_link);
-	redis_client.setEigenMatrixJSON(ROBOT_DEFAULT_ROT_KEY, R_default);
-	redis_client.setEigenMatrixJSON(ROBOT_DEFAULT_POS_KEY, pos_default);
-
-	// cout << "R default:\n" << R_default << endl; 
-
+    auto posori_task = new Sai2Primitives::PosOriTask(robot, link_name, pos_in_link);
 	VectorXd posori_task_torques = VectorXd::Zero(dof);
 	posori_task->_use_interpolation_flag = true;
 
@@ -189,6 +152,9 @@ int main() {
 
 	posori_task->_kp_ori = 200.0;
 	posori_task->_kv_ori = 23.0;
+
+    // initialize desired robot position as current position
+    Vector3d x_des = posori_task->_current_position;
 
 	// force sensing
 	Matrix3d R_link_sensor = Matrix3d::Identity();
@@ -217,22 +183,11 @@ int main() {
 	Vector3d tool_acceleration = Vector3d::Zero();
 	Vector3d tool_inertial_forces = Vector3d::Zero();
 
-
-	// dual proxy parameters and variables
+    // force control parameters
 	double k_vir = 250.0;
 	double max_force_diff = 0.1;
-	double max_force = 10.0;
-
-	int haptic_ready = 0;
-	redis_client.set(HAPTIC_DEVICE_READY_KEY, "0");
-
-	Vector3d robot_proxy = Vector3d::Zero();
-	Matrix3d robot_proxy_rot = Matrix3d::Identity();
-	Vector3d haptic_proxy = Vector3d::Zero();
+    double max_force = 10.0;
 	Vector3d prev_desired_force = Vector3d::Zero();
-
-	VectorXd q_des_hand = VectorXd::Zero(16);
-	string predefinedGrasp_string;
 
 	// setup redis keys to be updated with the callback
 	redis_client.createReadCallback(0);
@@ -247,69 +202,24 @@ int main() {
 	if(!flag_simulation) {
 		redis_client.addEigenToReadCallback(0, MASSMATRIX_KEY, mass_from_robot);
 		redis_client.addEigenToReadCallback(0, CORIOLIS_KEY, coriolis_from_robot);
-	}
+    }
 
-	redis_client.addEigenToReadCallback(0, ROBOT_PROXY_KEY, robot_proxy);
-	redis_client.addEigenToReadCallback(0, ROBOT_PROXY_ROT_KEY, robot_proxy_rot);
-	redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_ready);
+    redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
 
-	redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
-	
-	redis_client.addStringToReadCallback(0, ALLEGRO_PREDEFINED_GRASP, predefinedGrasp_string);
+    redis_client.addEigenToReadCallback(0, ROBOT_EE_POS_DES_KEY, x_des);
 
 	// Objects to write to redis
 	redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
 
-	redis_client.addEigenToWriteCallback(0, HAPTIC_PROXY_KEY, haptic_proxy);
-	redis_client.addEigenToWriteCallback(0, SIGMA_FORCE_KEY, sigma_force);
-	redis_client.addIntToWriteCallback(0, FORCE_SPACE_DIMENSION_KEY, force_space_dimension);
-
-	redis_client.addEigenToWriteCallback(0, ALLEGRO_POSITION_COMMANDED, q_des_hand);
-
 	// write internal controller state to redis
-	redis_client.addEigenToWriteCallback(0, ROBOT_EE_POS_KEY, posori_task->_current_position);
-	redis_client.addEigenToWriteCallback(0, ROBOT_EE_ORI_KEY, posori_task->_current_orientation);
-	redis_client.addEigenToWriteCallback(0, ROBOT_EE_FORCE_KEY, posori_task->_sensed_force);
-	redis_client.addEigenToWriteCallback(0, ROBOT_EE_MOMENT_KEY, posori_task->_sensed_moment);
-
-	// setup data logging
-	string folder = "../../02-dual_proxy_motion_normal_force_robot/data_logging/data/";
-	string filename = "data";
-    auto logger = new Logging::Logger(100000, folder + filename);
-	
-	Vector3d log_robot_ee_position = x_init;
-	Vector3d log_robot_ee_velocity = Vector3d::Zero();
-	Vector3d log_robot_proxy_position = robot_proxy;
-	VectorXd log_joint_angles = robot->_q;
-	VectorXd log_joint_velocities = robot->_dq;
-	VectorXd log_joint_command_torques = command_torques;
-	VectorXd log_sensed_force_moments = VectorXd::Zero(6);
-    Vector3d log_desired_force = Vector3d::Zero();
-
-    Matrix3d log_robot_ee_orientation = posori_task->_current_orientation; // TODO: add to logger
-
-    Vector3d log_posori_sensed_force = Vector3d::Zero();
-    Vector3d log_posori_sensed_moment = Vector3d::Zero();
-
-	logger->addVectorToLog(&log_robot_ee_position, "robot_ee_position");
-	logger->addVectorToLog(&log_robot_ee_velocity, "robot_ee_velocity");
-	logger->addVectorToLog(&log_robot_proxy_position, "robot_proxy_position");
-	logger->addVectorToLog(&log_joint_angles, "joint_angles");
-	logger->addVectorToLog(&log_joint_velocities, "joint_velocities");
-	logger->addVectorToLog(&log_joint_command_torques, "joint_command_torques");
-	logger->addVectorToLog(&log_sensed_force_moments, "sensed_forces_moments");
-    logger->addVectorToLog(&log_desired_force, "desired_force");
-
-    logger->addVectorToLog(&log_posori_sensed_force, "posori_sensed_force");
-    logger->addVectorToLog(&log_posori_sensed_moment, "posori_sensed_moment");
-
-	logger->start();
+    redis_client.addEigenToWriteCallback(0, ROBOT_EE_POS_KEY, posori_task->_current_position);
+    redis_client.addEigenToWriteCallback(0, ROBOT_EE_ORI_KEY, posori_task->_current_orientation);
+    redis_client.addEigenToWriteCallback(0, ROBOT_EE_FORCE_KEY, posori_task->_sensed_force);
+    redis_client.addEigenToWriteCallback(0, ROBOT_EE_MOMENT_KEY, posori_task->_sensed_moment);
 
 	// start particle filter thread
-	runloop = true;
-	redis_client.set(CONTROLLER_RUNNING_KEY,"1");
+    runloop = true;
 	thread particle_filter_thread(particle_filter);
-
 
 	// create a timer
 	unsigned long long controller_counter = 0;
@@ -329,7 +239,6 @@ int main() {
 
 		// read haptic state and robot state
 		redis_client.executeReadCallback(0);
-
 		if(flag_simulation) {
 			robot->updateModel();
 			robot->coriolisForce(coriolis);
@@ -368,14 +277,13 @@ int main() {
 		sensed_force_moment_world_frame.head(3) = R_world_sensor * sensed_force_moment_local_frame.head(3);
 		sensed_force_moment_world_frame.tail(3) = R_world_sensor * sensed_force_moment_local_frame.tail(3);
 
-
 		if(state == INIT) {
 			joint_task->updateTaskModel(MatrixXd::Identity(dof,dof));
 
 			joint_task->computeTorques(joint_task_torques);
 			command_torques = joint_task_torques + coriolis;
 
-			if(haptic_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
+            if((joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
 				// Reinitialize controllers
 				posori_task->reInitializeTask();
 				joint_task->reInitializeTask();
@@ -394,9 +302,9 @@ int main() {
 			posori_task->_sigma_position = sigma_motion;
 
 			Vector3d robot_position = posori_task->_current_position;
-			Vector3d motion_proxy = robot_position + sigma_motion * (robot_proxy - robot_position);
+            Vector3d motion_proxy = robot_position + sigma_motion * (x_des - robot_position);
 
-			Vector3d desired_force = k_vir * sigma_force * (robot_proxy - robot_position);
+            Vector3d desired_force = k_vir * sigma_force * (x_des - robot_position);
 			Vector3d desired_force_diff = desired_force - prev_desired_force;
 			if(desired_force_diff.norm() > max_force_diff) {
 				desired_force = prev_desired_force + desired_force_diff*max_force_diff/desired_force_diff.norm();
@@ -408,7 +316,7 @@ int main() {
 			// control
 			posori_task->_desired_position = motion_proxy;
 			posori_task->_desired_force = desired_force;
-            posori_task->_desired_orientation = robot_proxy_rot;
+//            posori_task->_desired_orientation = robot_proxy_rot; // comment to keep constant orientation
 
 			try	{
 				posori_task->computeTorques(posori_task_torques);
@@ -429,20 +337,12 @@ int main() {
             prev_desired_force = desired_force;
 		}
 
-		if (predefinedGrasp_string == "PREGRASP")
-			q_des_hand << 0.11, 0.34, 1.3, 1, 0.05, 0.43, 1.1, 1.3, -0.051, 0.46, 0.98, 1.2, 1.4, 0.075, 0.04, 1.6;
-		if (predefinedGrasp_string == "TOUCH")
-			q_des_hand << 0.12, 0.53, 1.4, 0.88, 0.15, 0.67, 1.1, 1.1, -0.047, 0.46, 0.98, 1.2, 1.4, 0.076, 0.24, 1.3;
-		if (predefinedGrasp_string == "GRASP")
-			q_des_hand << 0.062, 0.52, 1.4, 0.88, 0.21, 0.66, 1.1, 1.1, -0.052, 0.46, 0.98, 1.2,  1.4, 0.1, 0.45, 1.2;
-
-		// write control torques and dual proxy variables
-		robot->position(haptic_proxy, link_name, pos_in_link);
+        // write control torques
 		redis_client.executeWriteCallback(0);
-		
+
 		// particle filter
-		pfilter_motion_control_buffer.push(sigma_motion * (robot_proxy - posori_task->_current_position) * freq_ratio_filter_control);
-		pfilter_force_control_buffer.push(sigma_force * (robot_proxy - posori_task->_current_position) * freq_ratio_filter_control);
+        pfilter_motion_control_buffer.push(sigma_motion * (x_des - posori_task->_current_position) * freq_ratio_filter_control);
+        pfilter_force_control_buffer.push(sigma_force * (x_des - posori_task->_current_position) * freq_ratio_filter_control);
 		// pfilter_motion_control_buffer.push(sigma_motion * posori_task->_Lambda_modified.block<3,3>(0,0) * posori_task->_linear_motion_control * freq_ratio_filter_control);
 		// pfilter_force_control_buffer.push(sigma_force * posori_task->_linear_force_control * freq_ratio_filter_control);
 
@@ -465,22 +365,6 @@ int main() {
 			pfilter_sensed_velocity_buffer.pop();
 			pfilter_sensed_force_buffer.pop();			
 		}
-
-		// update logger values
-		Vector3d ee_vel = Vector3d::Zero();
-		robot->linearVelocity(ee_vel, link_name, pos_in_link);
-		
-		log_robot_ee_position = haptic_proxy;
-		log_robot_ee_velocity = ee_vel;
-		log_robot_proxy_position = robot_proxy;
-		log_joint_angles = robot->_q;
-		log_joint_velocities = robot->_dq;
-		log_joint_command_torques = command_torques;
-		log_sensed_force_moments = sensed_force_moment_world_frame;
-        log_desired_force = posori_task->_desired_force;
-
-        log_posori_sensed_force = posori_task->_sensed_force;
-        log_posori_sensed_moment = posori_task->_sensed_moment;
 	
 		controller_counter++;
 	}
@@ -488,14 +372,9 @@ int main() {
 	// wait for particle filter thread
 	particle_filter_thread.join();
 
-	// stop logger
-	logger->stop();
-
 	//// Send zero force/torque to robot ////
 	command_torques.setZero();
 	redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
-	redis_client.set(CONTROLLER_RUNNING_KEY,"0");
-
 
 	double end_time = timer.elapsedTime();
 	std::cout << "\n";

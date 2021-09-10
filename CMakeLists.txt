@@ -1,11 +1,12 @@
 cmake_minimum_required (VERSION 2.8.12)
-project (HapticApplications)
+project (LearningSkills)
 SET(CMAKE_CXX_FLAGS "-std=c++11 -I/usr/include -I/usr/local/include")
 # SET(CMAKE_BUILD_TYPE "Debug")
 SET(CMAKE_BUILD_TYPE "Release")
 
 # set common source
-set (HAPTIC_APPLICATIONS_COMMON_SOURCE)
+set (LEARNING_SKILLS_COMMON_SOURCE)
+include_directories(${PROJECT_SOURCE_DIR}/Model)
 # include_directories(${PROJECT_SOURCE_DIR}/src)
 # include_directories(${PROJECT_SOURCE_DIR}/utils)
 
@@ -70,7 +71,7 @@ find_library(GLFW_LIBRARY glfw)
 find_library(HIREDIS_LIBRARY hiredis)
 
 
-set(HAPTIC_APPLICATIONS_COMMON_LIBRARIES
+set(LEARNING_SKILLS_COMMON_LIBRARIES
 	${CHAI3D_LIBARIES}
 	${SAI2-COMMON_LIBRARIES}
 	${SAI2-PRIMITIVES_LIBRARIES}
@@ -79,14 +80,9 @@ set(HAPTIC_APPLICATIONS_COMMON_LIBRARIES
 	)
 
 # add apps
-set (HAPTIC_APPLICATIONS_BINARY_DIR                  ${PROJECT_SOURCE_DIR}/bin)
+set (LEARNING_SKILLS_BINARY_DIR                  ${PROJECT_SOURCE_DIR}/bin)
 
-add_subdirectory(00-force_sensor_calibration)
-# add_subdirectory(01-dual_proxy_motion_haptic)
-# add_subdirectory(01-dual_proxy_motion_robot)
-add_subdirectory(02-dual_proxy_motion_normal_force_haptic)
-add_subdirectory(02-dual_proxy_motion_normal_force_robot)
-add_subdirectory(03-dual_proxy_surface_alignment_haptic)
-add_subdirectory(03-dual_proxy_surface_alignment_robot)
-# add_subdirectory(04-dual_proxy_impedance_haptic)
-# add_subdirectory(04-dual_proxy_impedance_robot)
+add_subdirectory(force_sensor_calibration)
+add_subdirectory(haptic_control)
+add_subdirectory(support_control)
+
