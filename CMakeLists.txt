@@ -5,7 +5,8 @@ SET(CMAKE_CXX_FLAGS "-std=c++11 -I/usr/include -I/usr/local/include")
 SET(CMAKE_BUILD_TYPE "Release")
 
 # set common source
-set (HAPTIC_APPLICATIONS_COMMON_SOURCE)
+set (LEARNING_SKILLS_COMMON_SOURCE)
+include_directories(${PROJECT_SOURCE_DIR}/Model)
 # include_directories(${PROJECT_SOURCE_DIR}/src)
 # include_directories(${PROJECT_SOURCE_DIR}/utils)
 
@@ -70,7 +71,7 @@ find_library(GLFW_LIBRARY glfw)
 find_library(HIREDIS_LIBRARY hiredis)
 
 
-set(HAPTIC_APPLICATIONS_COMMON_LIBRARIES
+set(LEARNING_SKILLS_COMMON_LIBRARIES
 	${CHAI3D_LIBARIES}
 	${SAI2-COMMON_LIBRARIES}
 	${SAI2-PRIMITIVES_LIBRARIES}
@@ -79,7 +80,7 @@ set(HAPTIC_APPLICATIONS_COMMON_LIBRARIES
 	)
 
 # add apps
-set (HAPTIC_APPLICATIONS_BINARY_DIR                  ${PROJECT_SOURCE_DIR}/bin)
+set (LEARNING_SKILLS_BINARY_DIR                  ${PROJECT_SOURCE_DIR}/bin)
 
 add_subdirectory(force_sensor_calibration)
 add_subdirectory(haptic_control)
