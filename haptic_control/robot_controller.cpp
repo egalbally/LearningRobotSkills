@@ -8,6 +8,8 @@
 #include "filters/ButterworthFilter.h"
 #include "../src/Logger.h"
 #include "perception/ForceSpaceParticleFilter.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <iostream>
 #include <string>
@@ -94,15 +96,37 @@ void particle_filter();
 // const bool flag_simulation = false;
 const bool flag_simulation = true;
 
-int main() {
+int main(int argc, char ** argv) {
 
 	if(!flag_simulation) {
-		ROBOT_COMMAND_TORQUES_KEY = "sai2::FrankaPanda::actuators::fgc";
-		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::sensors::q";
-		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::sensors::dq";
-		MASSMATRIX_KEY = "sai2::FrankaPanda::sensors::model::massmatrix";
-		CORIOLIS_KEY = "sai2::FrankaPanda::sensors::model::coriolis";
-		ROBOT_SENSED_FORCE_KEY = "sai2::ATIGamma_Sensor::force_torque";
+
+		if ( 2 > argc )
+		{
+			fprintf( stderr, ">>> Usage: %s ROBOT_NAME\n", argv[0] );
+			fprintf("    Robot name options: Bonnie or Clyde\n");
+			return -1;
+		}
+
+		std::string robot_name = argv[1];
+
+		if (robot_name == "Clyde")
+		{
+			ROBOT_COMMAND_TORQUES_KEY = "sai2::FrankaPanda::Clyde::actuators::fgc";
+			JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Clyde::sensors::q";
+			JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::Clyde::sensors::dq";
+			MASSMATRIX_KEY = "sai2::FrankaPanda::Clyde::sensors::model::massmatrix";
+			CORIOLIS_KEY = "sai2::FrankaPanda::Clyde::sensors::model::coriolis";
+			ROBOT_SENSED_FORCE_KEY = "sai2::ATIGamma_Sensor::Clyde::force_torque";	
+		}
+		else if (robot_name == "Bonnie")
+		{
+			ROBOT_COMMAND_TORQUES_KEY = "sai2::FrankaPanda::Bonnie::actuators::fgc";
+			JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Bonnie::sensors::q";
+			JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::Bonnie::sensors::dq";
+			MASSMATRIX_KEY = "sai2::FrankaPanda::Bonnie::sensors::model::massmatrix";
+			CORIOLIS_KEY = "sai2::FrankaPanda::Bonnie::sensors::model::coriolis";
+			ROBOT_SENSED_FORCE_KEY = "sai2::ATIGamma_Sensor::Bonnie::force_torque";
+		}
 	}
 
 	// start redis client local

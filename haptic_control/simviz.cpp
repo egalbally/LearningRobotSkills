@@ -61,10 +61,10 @@ const string link_name = "end_effector"; //robot end-effector
 
 
 // redis keys:
-string JOINT_ANGLES_KEY = "sai2::HapticApplications::02::simviz::sensors::q";
-string JOINT_VELOCITIES_KEY = "sai2::HapticApplications::02::simviz::sensors::dq";
-string ROBOT_COMMAND_TORQUES_KEY = "sai2::HapticApplications::02::simviz::actuators::tau_cmd";
-string ROBOT_SENSED_FORCE_KEY = "sai2::HapticApplications::02::simviz::sensors::sensed_force";
+string JOINT_ANGLES_KEY = "sai2::LearningSkills::simviz::sensors::q";
+string JOINT_VELOCITIES_KEY = "sai2::LearningSkills::simviz::sensors::dq";
+string ROBOT_COMMAND_TORQUES_KEY = "sai2::LearningSkills::simviz::actuators::tau_cmd";
+string ROBOT_SENSED_FORCE_KEY = "sai2::LearningSkills::simviz::sensors::sensed_force";
 string ALLEGRO_TORQUE_COMMANDED = "LearningSkills::02::simviz::allegroHand::joint_torques_commanded";
 string ALLEGRO_POSITION_COMMANDED = "LearningSkills::02::simviz::allegroHand::joint_positions_commanded";
 
