@@ -103,7 +103,7 @@ int main(int argc, char ** argv) {
 		if ( 2 > argc )
 		{
 			fprintf( stderr, ">>> Usage: %s ROBOT_NAME\n", argv[0] );
-			fprintf("    Robot name options: Bonnie or Clyde\n");
+			fprintf( stderr, "    Robot name options: Bonnie or Clyde\n");
 			return -1;
 		}
 
