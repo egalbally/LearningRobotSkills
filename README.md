@@ -1,7 +1,15 @@
-Learning Skills
+Learning Skills - Website 
 ==========================
-This project contains the code required for a user to intervene haptically during task failure of a robotic manipulator. The user can collect data during the recovery strategy to learn a better autonomous task execution strategy.
+This branch contains the project **website source code**. 
 
-![projectDiagram](https://github.com/egalbally/learning_skills/blob/website/images/learningSkills_diagram.png)
+To access the website: </br >
+[**Project Website**](https://egalbally.github.io/LearningRobotSkills/)
+
+There you will find: 
+-   Complete project description
+-   Videos
+-   Link to paper and raw data set
+
+<!-- ![projectDiagram](https://github.com/egalbally/LearningRobotSkills/blob/master/imgs/learningSkills_diagram.png) -->
 
 
