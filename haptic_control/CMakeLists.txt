@@ -9,6 +9,9 @@ TARGET_LINK_LIBRARIES (haptic_control_robot ${LEARNING_SKILLS_COMMON_LIBRARIES})
 TARGET_LINK_LIBRARIES (haptic_control_device ${LEARNING_SKILLS_COMMON_LIBRARIES})
 #TARGET_LINK_LIBRARIES (robot_simviz ${LEARNING_SKILLS_COMMON_LIBRARIES})
 
+# copy control launch script to runtime directory
+FILE(COPY launch_haptic_control_robot_Clyde.sh DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+
 # export resources such as model files.
 # NOTE: this requires an install build
 SET(APP_RESOURCE_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/resources)
