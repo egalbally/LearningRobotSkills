@@ -33,7 +33,6 @@ const string robot_file = "./resources/panda_arm.urdf";
 string JOINT_ANGLES_KEY = "sai2::LearningSkills::haptic_control::simviz::sensors::q";
 string JOINT_VELOCITIES_KEY = "sai2::LearningSkills::haptic_control::simviz::sensors::dq";
 string ROBOT_COMMAND_TORQUES_KEY = "sai2::LearningSkills::haptic_control::simviz::actuators::tau_cmd";
-
 string ROBOT_SENSED_FORCE_KEY = "sai2::LearningSkills::haptic_control::simviz::sensors::sensed_force";
 
 string MASSMATRIX_KEY;
@@ -93,8 +92,8 @@ const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.034);
 // particle filter loop
 void particle_filter();
 
-// const bool flag_simulation = false;
-const bool flag_simulation = true;
+const bool flag_simulation = false;
+// const bool flag_simulation = true;
 
 int main(int argc, char ** argv) {
 
@@ -281,7 +280,7 @@ int main(int argc, char ** argv) {
     redis_client.addEigenToWriteCallback(0, ROBOT_EE_MOMENT_KEY, posori_task->_sensed_moment);
 
 	// setup data logging
-	string folder = "../../02-dual_proxy_motion_normal_force_robot/data_logging/data/";
+	string folder = "../../02-dual_proxy_motion_normal_force_robot/data_logging/data/";  //TODO - update
 	string filename = "data";
     auto logger = new Logging::Logger(100000, folder + filename);
 	
