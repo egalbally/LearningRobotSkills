@@ -8,3 +8,23 @@ This project contains the code required for a 7-DOF Panda robot to autonomously 
 
 
 
+## How to run the code:
+Inside launch_scripts, there are scritps to run each of the elements in the system: 
+
+### redis communication
+- server
+- client
+
+### hardware drivers
+- optitrack motion capture
+- ATI F/T sensor
+- haptic device driver
+- allegro hand 
+- panda arm 
+
+### controllers
+- robot controller 
+- haptic device controller 
+
+### data collection
+- logger and plotter (interface)
