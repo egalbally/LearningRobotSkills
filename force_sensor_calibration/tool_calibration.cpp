@@ -65,7 +65,7 @@ int main(int argc, char** argv)
     const string calibration_file_name = "../../force_sensor_calibration/calibration_files/" + calibration_file_name_tmp + ".xml";
 	string tool_name = "tool";
 
-	if (robot_in_use == BONNIE)
+	if (robot_in_use == "Bonnie")
 	{
 		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Bonnie::actuators::fgc";
 
@@ -79,7 +79,7 @@ int main(int argc, char** argv)
 		FORCE_SENSED_KEY = "sai2::ATIGamma_Sensor::Bonnie::force_torque";		
 	}
 
-	else if (robot_in_use == CLYDE)
+	else if (robot_in_use == "Clyde")
 	{	
 		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Clyde::actuators::fgc";
 
