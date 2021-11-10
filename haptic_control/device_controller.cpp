@@ -275,22 +275,25 @@ int main(int argc, char* argv[]) {
 		// }
 
 		if(state == INIT) {
-  			// compute homing haptic device
-  			teleop_task->HomingTask();
-
   			// reset robot workspace center if haptic device was previously controlled
-			if(controller_running == 2 && prev_state == CONTROL)
-			{
-				robot_ee_pos_auto_offset = robot_ee_pos;
-				// robot_ee_pos_auto_offset = Vector3d(0.426845,0.210365,0.530624);
+			if(controller_running == 2 && prev_state == CONTROL) {
+				// robot_ee_pos_auto_offset = robot_ee_pos;
+				robot_ee_pos_auto_offset = Vector3d(0.426845,0.210365,0.530624);
 				robot_ee_ori_auto_offset = robot_ee_ori;
 				// reset robot proxy to current robot pose
 				// robot_proxy = robot_ee_pos;
 				// robot_proxy_rot = robot_ee_ori;
 
-				// robot_proxy.setZero();
 				teleop_task->setRobotCenter(robot_ee_pos_auto_offset, robot_ee_ori_auto_offset);
+
+				teleop_task->setDeviceCenter(teleop_task->_current_position_device, teleop_task->_current_rotation_device);
+				// device_rot_center = teleop_task->_current_rotation_device;
+				// device_pos_center = teleop_task->_current_position_device;
+				teleop_task->computeHapticCommands6d(robot_proxy, robot_proxy_rot);
 			}
+
+			// compute homing haptic device
+			teleop_task->HomingTask();
 
 			if(teleop_task->device_homed && gripper_state) {
 				// teleop_task->setRobotCenter(haptic_proxy, robot_rotation_default);
@@ -304,7 +307,7 @@ int main(int argc, char* argv[]) {
 				haptic_device_ready = 1;
 
 				// change haptic device to CONTROL state when robot is in haptic control mode
-				if(controller_running == 3) {
+				if(controller_running == 2) {					
 					std::cout << "controlling haptic device" << std::endl;
 					prev_state = INIT;
 					state = CONTROL;
