@@ -16,8 +16,9 @@
 #include <random>
 #include <queue>
 
-#define INIT            0
-#define CONTROL         1
+#define INIT          	  	0
+#define AUTO_CONTROL		1
+#define HAPTIC_CONTROL 		2
 
 #include <signal.h>
 bool runloop = false;
@@ -54,8 +55,7 @@ string ROBOT_DEFAULT_ROT_KEY = "sai2::LearningSkills::haptic_control::dual_proxy
 string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_default_pos";
 
 string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::haptic_device_ready";
-string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::controller_running";
-
+string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::controller_running"; // 0 is off, 1 is auto control, 2 is haptic control
 
 RedisClient redis_client;
 
@@ -190,9 +190,9 @@ int main(int argc, char ** argv) {
 	VectorXd posori_task_torques = VectorXd::Zero(dof);
 	posori_task->_use_interpolation_flag = true;
 
-	posori_task->_otg->setMaxLinearVelocity(0.30);
-	posori_task->_otg->setMaxLinearAcceleration(1.0);
-	posori_task->_otg->setMaxLinearJerk(5.0);
+	posori_task->_otg->setMaxLinearVelocity(0.15);
+	posori_task->_otg->setMaxLinearAcceleration(0.5);
+	posori_task->_otg->setMaxLinearJerk(2.5);
 
 	posori_task->_otg->setMaxAngularVelocity(M_PI/1.5);
 	posori_task->_otg->setMaxAngularAcceleration(3*M_PI);
@@ -203,6 +203,9 @@ int main(int argc, char ** argv) {
 
 	posori_task->_kp_ori = 200.0;
 	posori_task->_kv_ori = 23.0;
+
+	// desired position in autonomous mode
+	Vector3d auto_x_des = Vector3d::Zero();
 
 	// force sensing
 	Matrix3d R_link_sensor = Matrix3d::Identity();
@@ -237,7 +240,7 @@ int main(int argc, char ** argv) {
 	double max_force_diff = 0.1;
 	double max_force = 10.0;
 
-	int haptic_ready = 0;
+	int haptic_device_ready = 0;
 	redis_client.set(HAPTIC_DEVICE_READY_KEY, "0");
 
 	Vector3d robot_proxy = Vector3d::Zero();
@@ -262,7 +265,7 @@ int main(int argc, char ** argv) {
 
 	redis_client.addEigenToReadCallback(0, ROBOT_PROXY_KEY, robot_proxy);
 	redis_client.addEigenToReadCallback(0, ROBOT_PROXY_ROT_KEY, robot_proxy_rot);
-	redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_ready);
+	redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_device_ready);
 
     redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
 
@@ -314,7 +317,8 @@ int main(int argc, char ** argv) {
 
 	// start particle filter thread
 	runloop = true;
-	redis_client.set(CONTROLLER_RUNNING_KEY,"1");
+	// redis_client.set(CONTROLLER_RUNNING_KEY,"1");
+	redis_client.set(CONTROLLER_RUNNING_KEY,"2");
 	thread particle_filter_thread(particle_filter);
 
 
@@ -381,7 +385,7 @@ int main(int argc, char ** argv) {
 			joint_task->computeTorques(joint_task_torques);
 			command_torques = joint_task_torques + coriolis;
 
-			if(haptic_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
+			if(haptic_device_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
 				// Reinitialize controllers
 				posori_task->reInitializeTask();
 				joint_task->reInitializeTask();
@@ -390,11 +394,69 @@ int main(int argc, char ** argv) {
 				joint_task->_kv = 13.0;
 				joint_task->_ki = 0.0;
 
-				state = CONTROL;
+				state = HAPTIC_CONTROL;
+
+				std::cout << "Entering HAPTIC control state" << std::endl;
+				// std::cout << "Entering AUTO control state \n";
+
+				redis_client.set(CONTROLLER_RUNNING_KEY,"2"); // set to haptic control mode
 			}
 		}
 
-		else if(state == CONTROL) {
+		else if(state == AUTO_CONTROL) {
+			auto_x_des = Vector3d(0.426845,0.210365,0.530624);
+
+			// dual proxy
+			posori_task->_sigma_force = sigma_force;
+			posori_task->_sigma_position = sigma_motion;
+
+			Vector3d robot_position = posori_task->_current_position;
+			Vector3d motion_proxy = robot_position + sigma_motion * (auto_x_des - robot_position);
+
+			Vector3d desired_force = k_vir * sigma_force * (auto_x_des - robot_position);
+			Vector3d desired_force_diff = desired_force - prev_desired_force;
+			if(desired_force_diff.norm() > max_force_diff) {
+				desired_force = prev_desired_force + desired_force_diff*max_force_diff/desired_force_diff.norm();
+			}
+			if(desired_force.norm() > max_force) {
+				desired_force *= max_force/desired_force.norm();
+			}
+
+			// control
+			posori_task->_desired_position = motion_proxy;
+			posori_task->_desired_force = desired_force;
+            posori_task->_desired_orientation = robot_proxy_rot;
+
+			try	{
+				posori_task->computeTorques(posori_task_torques);
+			}
+			catch(exception e) {
+				cout << "control cycle: " << controller_counter << endl;
+				cout << "error in the torque computation of posori_task:" << endl;
+				cerr << e.what() << endl;
+				cout << "setting torques to zero for this control cycle" << endl;
+				cout << endl;
+				// posori_task_torques.setZero(); // set task torques to zero, TODO: test this
+			}
+			joint_task->computeTorques(joint_task_torques);
+
+			command_torques = posori_task_torques + joint_task_torques + coriolis;
+
+			// remember values
+            prev_desired_force = desired_force;
+
+            // switch to haptic control in failure state
+            if((auto_x_des - robot_position).norm() < 0.05)
+            {
+            	state = HAPTIC_CONTROL;
+
+            	std::cout << "Entering HAPTIC control state" << std::endl;
+
+        		redis_client.set(CONTROLLER_RUNNING_KEY,"2"); // set to haptic control mode
+            }
+        }
+
+		else if(state == HAPTIC_CONTROL) {
 			// dual proxy
 			posori_task->_sigma_force = sigma_force;
 			posori_task->_sigma_position = sigma_motion;
@@ -433,6 +495,16 @@ int main(int argc, char ** argv) {
 
 			// remember values
             prev_desired_force = desired_force;
+
+            // switch to haptic control in failure state
+            if(haptic_device_ready == 2)
+            {
+            	state = AUTO_CONTROL;
+
+            	std::cout << "Entering AUTO control state" << std::endl;
+
+        		redis_client.set(CONTROLLER_RUNNING_KEY,"1"); // set to auto control mode
+            }
 		}
 
 		// write control torques and dual proxy variables

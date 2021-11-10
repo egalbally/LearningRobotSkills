@@ -14,6 +14,7 @@
 #define CONTROL         1
 
 int state = INIT;
+int prev_state = INIT;
 
 #include <signal.h>
 bool runloop = false;
@@ -85,6 +86,10 @@ vector<string> DEVICE_SENSED_TORQUE_KEYS = {
 	"sai2::ChaiHapticDevice::device1::sensors::sensed_torque",
 	};
 
+// posori task state information (read)
+string ROBOT_EE_POS_KEY = "sai2::LearningSkills::haptic_control::robot::ee_pos";
+string ROBOT_EE_ORI_KEY = "sai2::LearningSkills::haptic_control::robot::ee_ori";
+
 // dual proxy
 string ROBOT_PROXY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_proxy";
 string HAPTIC_PROXY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::haptic_proxy";
@@ -96,6 +101,12 @@ string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::haptic_control::dual_proxy
 
 string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::haptic_device_ready";
 string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::controller_running";
+
+int controller_running = 0;
+Vector3d robot_ee_pos = Vector3d::Zero();
+Matrix3d robot_ee_ori = Matrix3d::Identity();
+Vector3d robot_ee_pos_auto_offset = Vector3d::Zero();
+Matrix3d robot_ee_ori_auto_offset = Matrix3d::Identity();
 
 int haptic_device_ready = 0;
 int force_space_dimension = 0;
@@ -151,8 +162,8 @@ int main(int argc, char* argv[]) {
 
 	// haptic control
 	//// Haptic teleoperation controller ////
-	if(redis_client_remote.get(CONTROLLER_RUNNING_KEY) != "1") {
-		std::cout << "run the robot controller before the haptic controller" << endl;
+	if(redis_client_remote.get(CONTROLLER_RUNNING_KEY) == "0") {
+		std::cout << "run the robot controller before the haptic controller" << std::endl;
 		return 0;
 	}
 	Vector3d robot_workspace_center = redis_client_remote.getEigenMatrixJSON(ROBOT_DEFAULT_POS_KEY);
@@ -256,20 +267,32 @@ int main(int argc, char* argv[]) {
 		// read haptic state and robot state
 		redis_client_local.executeReadCallback(0);
 
+		// if(prev_state == INIT)
+		// {
 		teleop_task->UseGripperAsSwitch();
 		gripper_state_prev = gripper_state;
 		gripper_state = teleop_task->gripper_state;
+		// }
 
 		if(state == INIT) {
   			// compute homing haptic device
   			teleop_task->HomingTask();
 
+  			// reset robot workspace center if haptic device was previously controlled
+			if(controller_running == 2 && prev_state == CONTROL)
+			{
+				robot_ee_pos_auto_offset = robot_ee_pos;
+				// robot_ee_pos_auto_offset = Vector3d(0.426845,0.210365,0.530624);
+				robot_ee_ori_auto_offset = robot_ee_ori;
+				// reset robot proxy to current robot pose
+				// robot_proxy = robot_ee_pos;
+				// robot_proxy_rot = robot_ee_ori;
+
+				// robot_proxy.setZero();
+				teleop_task->setRobotCenter(robot_ee_pos_auto_offset, robot_ee_ori_auto_offset);
+			}
+
 			if(teleop_task->device_homed && gripper_state) {
-  			// cout << teleop_task->device_homed << endl;
-
-			// if(controller_counter > 3000 && gripper_state) {
-				// teleop_task->device_homed = true;
-
 				// teleop_task->setRobotCenter(haptic_proxy, robot_rotation_default);
 				teleop_task->setDeviceCenter(teleop_task->_current_position_device, teleop_task->_current_rotation_device);
 				device_rot_center = teleop_task->_current_rotation_device;
@@ -279,7 +302,13 @@ int main(int argc, char* argv[]) {
 				teleop_task->reInitializeTask();
 
 				haptic_device_ready = 1;
-				state = CONTROL;
+
+				// change haptic device to CONTROL state when robot is in haptic control mode
+				if(controller_running == 3) {
+					std::cout << "controlling haptic device" << std::endl;
+					prev_state = INIT;
+					state = CONTROL;
+				}
 			}
 		}
 
@@ -315,6 +344,14 @@ int main(int argc, char* argv[]) {
 
 			// remember values 
 			prev_desired_force = desired_force;
+
+			// change haptic device back to INIT state when robot is in auto control mode
+			if(controller_running == 1) {
+				haptic_device_ready = 0;
+				std::cout << "resetting haptic device to init state" << std::endl;
+				prev_state = CONTROL;
+				state = INIT;
+			}
 		}
 
 		// write control torques
@@ -363,6 +400,10 @@ void communication(int delay) {
 	redis_client_remote.addEigenToReadCallback(0, HAPTIC_PROXY_KEY, haptic_proxy);
 	redis_client_remote.addIntToReadCallback(0, FORCE_SPACE_DIMENSION_KEY, force_space_dimension);
 	redis_client_remote.addEigenToReadCallback(0, SIGMA_FORCE_KEY, sigma_force);
+
+	redis_client_remote.addIntToReadCallback(0, CONTROLLER_RUNNING_KEY, controller_running);
+	redis_client_remote.addEigenToReadCallback(0, ROBOT_EE_POS_KEY, robot_ee_pos);
+	redis_client_remote.addEigenToReadCallback(0, ROBOT_EE_ORI_KEY, robot_ee_ori);
 
 	redis_client_remote.addEigenToWriteCallback(0, ROBOT_PROXY_KEY, delayed_robot_proxy);
 	redis_client_remote.addEigenToWriteCallback(0, ROBOT_PROXY_ROT_KEY, delayed_robot_proxy_rot);
