@@ -21,8 +21,6 @@ void sighandler(int sig)
 #define BONNIE 	11
 #define CLYDE   10
 
-int robot_in_use = BONNIE;
-
 using namespace std;
 using namespace Eigen;
 
@@ -54,12 +52,16 @@ unsigned long long controller_counter = 0;
 int main(int argc, char** argv) 
 {
 
-	if(argc < 2)
+	if(argc < 3)
 	{
-	    std::cout << "Usage :\n./tool_calibration [calibration_file_name]" << std::endl;
-	    return 0;
+	    
+		fprintf( stderr, ">>> Usage: %s [ROBOT_NAME] [calibration_file_name]\n", argv[0] );
+		fprintf( stderr, "    Robot name options: Bonnie or Clyde\n");
+		fprintf( stderr, "    Cal file name example: calibration_Clyde_ATI_allegro_bottle_nov9_2021\n");
+		return -1;
 	}
-	const string calibration_file_name_tmp = argv[1];
+	std::string robot_in_use = argv[1];
+	const string calibration_file_name_tmp = argv[2];
     const string calibration_file_name = "../../force_sensor_calibration/calibration_files/" + calibration_file_name_tmp + ".xml";
 	string tool_name = "tool";
 

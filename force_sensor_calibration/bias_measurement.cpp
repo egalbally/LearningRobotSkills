@@ -2,6 +2,8 @@
 #include "redis/RedisClient.h"
 #include "timer/LoopTimer.h"
 #include "tasks/JointTask.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <iostream>
 #include <fstream>
@@ -9,8 +11,7 @@
 
 #include <signal.h>
 bool runloop = true;
-void sighandler(int sig)
-{ runloop = false; }
+void sighandler(int sig){ runloop = false;}
 
 // controller states
 #define MEASURE 	0 // take measurements for calibration
@@ -19,8 +20,6 @@ void sighandler(int sig)
 // robot being used
 #define BONNIE 	11
 #define CLYDE   10
-
-int robot_in_use = BONNIE;
 
 using namespace std;
 using namespace Eigen;
@@ -49,9 +48,18 @@ void writeXml(const string file_name, const VectorXd sensor_bias);
 
 unsigned long long controller_counter = 0;
 
-int main() {
+int main(int argc, char ** argv) {
 
-	if (robot_in_use == BONNIE)
+	if ( 2 > argc )
+	{
+			fprintf( stderr, ">>> Usage: %s [ROBOT_NAME]\n", argv[0] );
+			fprintf( stderr, "    Robot name options: Bonnie or Clyde\n");
+			return -1;
+	}
+
+	std::string robot_in_use = argv[1];
+
+	if (robot_in_use == "Bonnie")
 	{
 		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Bonnie::actuators::fgc";
 
@@ -65,7 +73,7 @@ int main() {
 		FORCE_SENSED_KEY = "sai2::ATIGamma_Sensor::Bonnie::force_torque";		
 	}
 
-	else if (robot_in_use == CLYDE)
+	else if (robot_in_use == "Clyde")
 	{	
 		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Clyde::actuators::fgc";
 
