@@ -1,6 +1,6 @@
 # create an executable
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${LEARNING_SKILLS_BINARY_DIR}/support_control)
-ADD_EXECUTABLE (support_control robot_controller.cpp ${LEARNING_SKILLS_COMMON_SOURCE})
+ADD_EXECUTABLE (support_control support_robot_controller.cpp ${LEARNING_SKILLS_COMMON_SOURCE})
 
 # and link the library against the executable
 TARGET_LINK_LIBRARIES (support_control ${LEARNING_SKILLS_COMMON_LIBRARIES})
