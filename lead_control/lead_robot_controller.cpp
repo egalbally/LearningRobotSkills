@@ -16,9 +16,11 @@
 #include <random>
 #include <queue>
 
-#define INIT          	  	0
-#define AUTO_CONTROL		1
-#define HAPTIC_CONTROL 		2
+#define INIT                  	0
+#define AUTO_CONTROL        	1
+#define HAPTIC_CONTROL          2
+#define NUM_RIGID_BODIES        1
+#define RIGID_BODY_OF_INTEREST  0
 
 #include <signal.h>
 bool runloop = false;
@@ -39,7 +41,11 @@ string ROBOT_SENSED_FORCE_KEY = "sai2::LearningSkills::haptic_control::simviz::s
 string MASSMATRIX_KEY;
 string CORIOLIS_KEY;
 
-// posori task state information
+// posori task
+// read perception state
+string POS_RIGID_BODIES_KEY = "sai2::optitrack::pos_rigid_bodies";
+string ORI_RIGID_BODIES_KEY = "sai2::optitrack::ori_rigid_bodies";
+// write state information
 string ROBOT_EE_POS_KEY = "sai2::LearningSkills::haptic_control::robot::ee_pos";
 string ROBOT_EE_ORI_KEY = "sai2::LearningSkills::haptic_control::robot::ee_ori";
 string ROBOT_EE_FORCE_KEY = "sai2::LearningSkills::haptic_control::robot::ee_force";
@@ -97,18 +103,20 @@ const bool flag_simulation = false;
 
 int main(int argc, char ** argv) {
 
+	std::string robot_name;
+
 	if(!flag_simulation) {
 
-		if ( 2 > argc )
+		if(argc < 2)
 		{
 			fprintf( stderr, ">>> Usage: %s ROBOT_NAME\n", argv[0] );
 			fprintf( stderr, "    Robot name options: Bonnie or Clyde\n");
 			return -1;
 		}
 
-		std::string robot_name = argv[1];
+		robot_name = argv[1];
 
-		if (robot_name == "Clyde")
+		if(robot_name == "Clyde")
 		{
 			ROBOT_COMMAND_TORQUES_KEY = "sai2::FrankaPanda::Clyde::actuators::fgc";
 			JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Clyde::sensors::q";
@@ -117,7 +125,7 @@ int main(int argc, char ** argv) {
 			CORIOLIS_KEY = "sai2::FrankaPanda::Clyde::sensors::model::coriolis";
 			ROBOT_SENSED_FORCE_KEY = "sai2::ATIGamma_Sensor::Clyde::force_torque";	
 		}
-		else if (robot_name == "Bonnie")
+		else if(robot_name == "Bonnie")
 		{
 			ROBOT_COMMAND_TORQUES_KEY = "sai2::FrankaPanda::Bonnie::actuators::fgc";
 			JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Bonnie::sensors::q";
@@ -204,8 +212,50 @@ int main(int argc, char ** argv) {
 	posori_task->_kp_ori = 200.0;
 	posori_task->_kv_ori = 23.0;
 
-	// desired position in autonomous mode
-	Vector3d auto_x_des = Vector3d::Zero();
+    // initialize desired robot position as current position
+    Vector3d x_des = posori_task->_current_position;
+
+    // rigid body positions from perception
+    double optitrack_angle = 0.0;
+    Vector3d pos_robot_ref_in_optitrack_frame = Vector3d::Zero();
+    Vector3d pos_robot_ref_in_robot_frame = Vector3d::Zero();
+
+    if(robot_name == "Clyde")
+    {
+        // angle from robot base frame +X to optitrack -Z w/ positive sense about robot base frame +Z
+        optitrack_angle = -17.5;
+
+        // measure position of reference point on robot in both optitrack and robot frames
+        pos_robot_ref_in_optitrack_frame = Vector3d(0.664136, 0.875408, 0.371283);
+        pos_robot_ref_in_robot_frame = Vector3d(0.230862, -0.236466, 0.893357);
+    }
+
+    else if(robot_name == "Bonnie")
+    {
+        // angle from robot base frame +X to optitrack -Z w/ positive sense about robot base frame +Z
+        optitrack_angle = 62.5;
+
+        // measure position of reference point on robot in both optitrack and robot frames
+        pos_robot_ref_in_optitrack_frame = Vector3d(-0.508397, 0.847871, 0.313138);
+        pos_robot_ref_in_robot_frame = Vector3d(0.048436, 0.275109, 0.922579);
+    }
+
+    // set offset from robot frame to rigid body perception (optitrack) frame
+    Matrix3d rot_optitrack_in_robot_frame;
+    rot_optitrack_in_robot_frame <<  sin(optitrack_angle * M_PI / 180.0),    0,  -cos(optitrack_angle * M_PI / 180.0),
+                                     -cos(optitrack_angle * M_PI / 180.0),   0,  -sin(optitrack_angle * M_PI / 180.0),
+                                     0,                                      1,   0;
+    // list of rigid body poses in world
+    MatrixXd pos_rigid_bodies(NUM_RIGID_BODIES, 3);
+    MatrixXd ori_rigid_bodies(NUM_RIGID_BODIES, 4);
+    pos_rigid_bodies.setZero();
+    ori_rigid_bodies.setZero();
+    // rigid body pose of interest
+    Vector3d        pos_rigid_body_in_optitrack_frame          = Vector3d::Zero();
+    Matrix3d        ori_rigid_body_in_optitrack_frame          = Matrix3d::Identity();
+    Quaterniond     ori_rigid_body_in_optitrack_frame_quat     = Quaterniond::Identity();
+    Vector3d        pos_rigid_body_in_robot_frame              = Vector3d::Zero();
+    Matrix3d        ori_rigid_body_in_robot_frame              = Matrix3d::Identity();
 
 	// force sensing
 	Matrix3d R_link_sensor = Matrix3d::Identity();
@@ -223,9 +273,9 @@ int main(int argc, char ** argv) {
 	bool first_loop = true;
 
 	if(!flag_simulation) {
-		force_bias << 1.50246,   -8.19902,  -0.695169,  -0.987652,   0.290632, -0.0453239;
+		force_bias << 1.50246, -8.19902, -0.695169, -0.987652, 0.290632, -0.0453239;
 		tool_mass = 0.33;
-		tool_com = Vector3d(-0.00492734, -0.00295005,   0.0859595);
+		tool_com = Vector3d(-0.00492734, -0.00295005, 0.0859595);
 	}
 
 	// remove inertial forces from tool
@@ -233,7 +283,6 @@ int main(int argc, char ** argv) {
 	Vector3d prev_tool_velocity = Vector3d::Zero();
 	Vector3d tool_acceleration = Vector3d::Zero();
 	Vector3d tool_inertial_forces = Vector3d::Zero();
-
 
 	// dual proxy parameters and variables
 	double k_vir = 250.0;
@@ -321,7 +370,6 @@ int main(int argc, char ** argv) {
 	redis_client.set(CONTROLLER_RUNNING_KEY,"2");
 	thread particle_filter_thread(particle_filter);
 
-
 	// create a timer
 	unsigned long long controller_counter = 0;
 	LoopTimer timer;
@@ -378,6 +426,13 @@ int main(int argc, char ** argv) {
 		sensed_force_moment_world_frame.head(3) = R_world_sensor * sensed_force_moment_local_frame.head(3);
 		sensed_force_moment_world_frame.tail(3) = R_world_sensor * sensed_force_moment_local_frame.tail(3);
 
+        // update rigid body poses from perception
+        pos_rigid_body_in_optitrack_frame               = pos_rigid_bodies.row(RIGID_BODY_OF_INTEREST);
+        ori_rigid_body_in_optitrack_frame_quat.coeffs() = ori_rigid_bodies.row(RIGID_BODY_OF_INTEREST);
+        ori_rigid_body_in_optitrack_frame               = ori_rigid_body_in_optitrack_frame_quat.toRotationMatrix(); // convert quaternion to rotation matrix
+        // transform rigid body poses to robot frame
+        pos_rigid_body_in_robot_frame = rot_optitrack_in_robot_frame * (pos_rigid_body_in_optitrack_frame - pos_robot_ref_in_optitrack_frame) + pos_robot_ref_in_robot_frame;
+        ori_rigid_body_in_robot_frame = rot_optitrack_in_robot_frame * ori_rigid_body_in_optitrack_frame;
 
 		if(state == INIT) {
 			joint_task->updateTaskModel(MatrixXd::Identity(dof,dof));
@@ -394,9 +449,9 @@ int main(int argc, char ** argv) {
 				joint_task->_kv = 13.0;
 				joint_task->_ki = 0.0;
 
-				state = HAPTIC_CONTROL;
+				state = AUTO_CONTROL;
 
-				std::cout << "Entering HAPTIC control state" << std::endl;
+				std::cout << "Entering AUTO control state" << std::endl;
 				// std::cout << "Entering AUTO control state \n";
 
 				redis_client.set(CONTROLLER_RUNNING_KEY,"2"); // set to haptic control mode
@@ -404,16 +459,17 @@ int main(int argc, char ** argv) {
 		}
 
 		else if(state == AUTO_CONTROL) {
-			auto_x_des = Vector3d(0.426845,0.210365,0.530624);
+			// update desired robot position as rigid body position
+            x_des = pos_rigid_body_in_robot_frame;
 
 			// dual proxy
 			posori_task->_sigma_force = sigma_force;
 			posori_task->_sigma_position = sigma_motion;
 
 			Vector3d robot_position = posori_task->_current_position;
-			Vector3d motion_proxy = robot_position + sigma_motion * (auto_x_des - robot_position);
+			Vector3d motion_proxy = robot_position + sigma_motion * (x_des - robot_position);
 
-			Vector3d desired_force = k_vir * sigma_force * (auto_x_des - robot_position);
+			Vector3d desired_force = k_vir * sigma_force * (x_des - robot_position);
 			Vector3d desired_force_diff = desired_force - prev_desired_force;
 			if(desired_force_diff.norm() > max_force_diff) {
 				desired_force = prev_desired_force + desired_force_diff*max_force_diff/desired_force_diff.norm();
@@ -425,7 +481,8 @@ int main(int argc, char ** argv) {
 			// control
 			posori_task->_desired_position = motion_proxy;
 			posori_task->_desired_force = desired_force;
-            posori_task->_desired_orientation = robot_proxy_rot;
+            // posori_task->_desired_orientation = robot_proxy_rot; // comment to keep constant orientation
+            posori_task->_desired_orientation = ori_rigid_body_in_robot_frame;
 
 			try	{
 				posori_task->computeTorques(posori_task_torques);
@@ -442,18 +499,20 @@ int main(int argc, char ** argv) {
 
 			command_torques = posori_task_torques + joint_task_torques + coriolis;
 
+			command_torques.setZero();
+
 			// remember values
             prev_desired_force = desired_force;
 
-            // switch to haptic control in failure state
-            if((auto_x_des - robot_position).norm() < 0.05)
-            {
-            	state = HAPTIC_CONTROL;
+          //   // switch to haptic control in failure state
+          //   if((x_des - robot_position).norm() < 0.05)
+          //   {
+          //   	state = HAPTIC_CONTROL;
 
-            	std::cout << "Entering HAPTIC control state" << std::endl;
+          //   	std::cout << "Entering HAPTIC control state" << std::endl;
 
-        		redis_client.set(CONTROLLER_RUNNING_KEY,"2"); // set to haptic control mode
-            }
+        		// redis_client.set(CONTROLLER_RUNNING_KEY,"2"); // set to haptic control mode
+          //   }
         }
 
 		else if(state == HAPTIC_CONTROL) {

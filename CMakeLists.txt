@@ -83,6 +83,5 @@ set(LEARNING_SKILLS_COMMON_LIBRARIES
 set (LEARNING_SKILLS_BINARY_DIR                  ${PROJECT_SOURCE_DIR}/bin)
 
 add_subdirectory(force_sensor_calibration)
-add_subdirectory(haptic_control)
+add_subdirectory(lead_control)
 add_subdirectory(support_control)
-
