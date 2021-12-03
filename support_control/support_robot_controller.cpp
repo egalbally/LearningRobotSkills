@@ -15,9 +15,10 @@
 #include <random>
 #include <queue>
 
-#define INIT                0
-#define CONTROL             1
-#define NUM_RIGID_BODIES    3
+#define INIT                    0
+#define AUTO_CONTROL            1
+#define HAPTIC_CONTROL          2
+#define NUM_RIGID_BODIES        1
 
 #include <signal.h>
 bool runloop = false;
@@ -48,6 +49,18 @@ string ROBOT_EE_ORI_KEY = "sai2::LearningSkills::support_control::robot::ee_ori"
 string ROBOT_EE_FORCE_KEY = "sai2::LearningSkills::support_control::robot::ee_force";
 string ROBOT_EE_MOMENT_KEY = "sai2::LearningSkills::support_control::robot::ee_moment";
 
+// dual proxy
+string ROBOT_PROXY_KEY = "sai2::LearningSkills::support_control::dual_proxy::robot_proxy";
+string ROBOT_PROXY_ROT_KEY = "sai2::LearningSkills::support_control::dual_proxy::robot_proxy_rot";
+string HAPTIC_PROXY_KEY = "sai2::LearningSkills::support_control::dual_proxy::haptic_proxy";
+string FORCE_SPACE_DIMENSION_KEY = "sai2::LearningSkills::support_control::dual_proxy::force_space_dimension";
+string SIGMA_FORCE_KEY = "sai2::LearningSkills::support_control::dual_proxy::sigma_force";
+string ROBOT_DEFAULT_ROT_KEY = "sai2::LearningSkills::support_control::dual_proxy::robot_default_rot";
+string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::support_control::dual_proxy::robot_default_pos";
+
+string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::support_control::dual_proxy::haptic_device_ready";
+string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::support_control::dual_proxy::controller_running"; // 0 is off, 1 is auto control, 2 is haptic control
+
 RedisClient redis_client;
 
 // particle filter parameters
@@ -72,13 +85,15 @@ const double control_loop_freq = 1000.0;
 const double pfilter_freq = 50.0;
 const double freq_ratio_filter_control = pfilter_freq / control_loop_freq;
 
-// set control link and point for posori task
-const string link_name = "link7";
-const Vector3d pos_in_link = Vector3d(0.0,0.0,0.30); 
-
 // set sensor frame transform in end-effector frame
 Affine3d sensor_transform_in_link = Affine3d::Identity();
-const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.034);
+const Vector3d sensor_pos_in_link = Eigen::Vector3d(0.0,0.0,0.0333);
+
+// helper function for creating + initializing posori task
+unique_ptr<Sai2Primitives::PosOriTask> init_posori(Sai2Model::Sai2Model* robot,
+                                                    const std::string link_name,
+                                                    const Eigen::Vector3d pos_in_link,
+                                                    const Eigen::Matrix3d rot_in_link);
 
 // particle filter loop
 void particle_filter();
@@ -163,25 +178,14 @@ int main(int argc, char ** argv) {
     joint_task->_desired_position = robot->_q; // use current robot config as init config
 
     // posori task
-    // const string link_name = "end_effector";
-    // const Vector3d pos_in_link = Vector3d(0, 0, 0.12);
-    auto posori_task = new Sai2Primitives::PosOriTask(robot, link_name, pos_in_link);
+    // set control link and point for posori task
+    const string link_name = "end_effector";
+    Vector3d pos_in_link = Vector3d(0.0, 0.015, 0.28); // TODO: get measurement from borns
+    // Vector3d pos_in_link = Vector3d(0.0, 0.0, 0.1); // TODO: get measurement from borns
+    Matrix3d rot_in_link = Matrix3d::Identity();
+    unique_ptr<Sai2Primitives::PosOriTask> posori_task = init_posori(robot, link_name, pos_in_link, rot_in_link);
+
     VectorXd posori_task_torques = VectorXd::Zero(dof);
-    posori_task->_use_interpolation_flag = true;
-
-    posori_task->_otg->setMaxLinearVelocity(0.15);
-    posori_task->_otg->setMaxLinearAcceleration(0.5);
-    posori_task->_otg->setMaxLinearJerk(2.5);
-
-    posori_task->_otg->setMaxAngularVelocity(M_PI/1.5);
-    posori_task->_otg->setMaxAngularAcceleration(3*M_PI);
-    posori_task->_otg->setMaxAngularJerk(15*M_PI);
-
-    posori_task->_kp_pos = 100.0;
-    posori_task->_kv_pos = 17.0;
-
-    posori_task->_kp_ori = 200.0;
-    posori_task->_kv_ori = 23.0;
 
     // initialize desired robot pose as current pose
     Vector3d x_des = posori_task->_current_position;
@@ -220,10 +224,17 @@ int main(int argc, char ** argv) {
     Vector3d tool_acceleration = Vector3d::Zero();
     Vector3d tool_inertial_forces = Vector3d::Zero();
 
-    // force control parameters
+    // dual proxy parameters and variables
     double k_vir = 250.0;
     double max_force_diff = 0.1;
     double max_force = 10.0;
+
+    int haptic_device_ready = 0;
+    redis_client.set(HAPTIC_DEVICE_READY_KEY, "0");
+
+    Vector3d robot_proxy = Vector3d::Zero();
+    Matrix3d robot_proxy_rot = Matrix3d::Identity();
+    Vector3d haptic_proxy = Vector3d::Zero();
     Vector3d prev_desired_force = Vector3d::Zero();
 
     // setup redis keys to be updated with the callback
@@ -321,7 +332,7 @@ int main(int argc, char ** argv) {
             joint_task->computeTorques(joint_task_torques);
             command_torques = joint_task_torques + coriolis;
 
-            if((joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
+            if(haptic_device_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
                 // Reinitialize controllers
                 posori_task->reInitializeTask();
                 joint_task->reInitializeTask();
@@ -330,14 +341,18 @@ int main(int argc, char ** argv) {
                 joint_task->_kv = 13.0;
                 joint_task->_ki = 0.0;
 
-                state = CONTROL;
+                state = HAPTIC_CONTROL;
+
+                std::cout << "Entering HAPTIC control state" << std::endl;
+
+                redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
             }
         }
 
         // ---------
         //  CONTROL
         // ---------
-        else if(state == CONTROL) {
+        else if(state == AUTO_CONTROL) {
             
             // update desired robot position  
             if (ee_pose == "current"){
@@ -409,9 +424,71 @@ int main(int argc, char ** argv) {
 
             // remember values
             prev_desired_force = desired_force;
+
+            // switch to haptic control in failure state
+            if((x_des - robot_position).norm() < 0.05)
+            {
+                state = HAPTIC_CONTROL;
+
+                std::cout << "Entering HAPTIC control state" << std::endl;
+
+                redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
+            }
         }
 
-        // write control torques
+        else if(state == HAPTIC_CONTROL) {
+            // dual proxy
+            posori_task->_sigma_force = sigma_force;
+            posori_task->_sigma_position = sigma_motion;
+
+            Vector3d robot_position = posori_task->_current_position;
+            Vector3d motion_proxy = robot_position + sigma_motion * (robot_proxy - robot_position);
+
+            Vector3d desired_force = k_vir * sigma_force * (robot_proxy - robot_position);
+            Vector3d desired_force_diff = desired_force - prev_desired_force;
+            if(desired_force_diff.norm() > max_force_diff) {
+                desired_force = prev_desired_force + desired_force_diff*max_force_diff/desired_force_diff.norm();
+            }
+            if(desired_force.norm() > max_force) {
+                desired_force *= max_force/desired_force.norm();
+            }
+
+            // control
+            posori_task->_desired_position = motion_proxy;
+            posori_task->_desired_force = desired_force;
+            posori_task->_desired_orientation = robot_proxy_rot;
+
+            try {
+                posori_task->computeTorques(posori_task_torques);
+            }
+            catch(exception e) {
+                cout << "control cycle: " << controller_counter << endl;
+                cout << "error in the torque computation of posori_task:" << endl;
+                cerr << e.what() << endl;
+                cout << "setting torques to zero for this control cycle" << endl;
+                cout << endl;
+                // posori_task_torques.setZero(); // set task torques to zero, TODO: test this
+            }
+            joint_task->computeTorques(joint_task_torques);
+
+            command_torques = posori_task_torques + joint_task_torques + coriolis;
+
+            // remember values
+            prev_desired_force = desired_force;
+
+            // switch to haptic control in failure state
+            if(haptic_device_ready == 2)
+            {
+                state = AUTO_CONTROL;
+
+                std::cout << "Entering AUTO control state" << std::endl;
+
+                redis_client.set(CONTROLLER_RUNNING_KEY, "1"); // set to auto control mode
+            }
+        }
+
+        // write control torques and dual proxy variables
+        robot->position(haptic_proxy, link_name, pos_in_link);
         redis_client.executeWriteCallback(0);
 
         // particle filter
@@ -458,7 +535,6 @@ int main(int argc, char ** argv) {
 
     delete robot;
     delete joint_task;
-    delete posori_task;
 }
 
 
@@ -526,4 +602,54 @@ void particle_filter() {
     std::cout << "Particle Filter Loop frequency : " << timer.elapsedCycles()/end_time << "Hz\n";
 
     delete pfilter;
+}
+
+unique_ptr<Sai2Primitives::PosOriTask> init_posori(Sai2Model::Sai2Model* robot,
+                                                    const std::string link_name,
+                                                    const Eigen::Vector3d pos_in_link,
+                                                    const Eigen::Matrix3d rot_in_link)
+{
+    unique_ptr<Sai2Primitives::PosOriTask> posori_task( new Sai2Primitives::PosOriTask(robot, link_name, pos_in_link, rot_in_link) );
+    Vector3d x_init = posori_task->_current_position;
+    Matrix3d R_init = posori_task->_current_orientation;
+    redis_client.setEigenMatrixJSON(ROBOT_PROXY_KEY, x_init);
+    redis_client.setEigenMatrixJSON(ROBOT_PROXY_ROT_KEY, R_init);
+    redis_client.setEigenMatrixJSON(HAPTIC_PROXY_KEY, x_init);
+    // compute expected default rotation to send to haptic
+    // robot->_q = q_init;
+    // robot->updateModel();
+    Matrix3d R_default = Matrix3d::Identity();
+    Vector3d pos_default = Vector3d::Zero();
+    robot->rotation(R_default, link_name);
+    robot->position(pos_default, link_name, pos_in_link);
+    redis_client.setEigenMatrixJSON(ROBOT_DEFAULT_ROT_KEY, R_default);
+    redis_client.setEigenMatrixJSON(ROBOT_DEFAULT_POS_KEY, pos_default);
+
+    // cout << "R default:\n" << R_default << endl;
+
+    posori_task->_use_interpolation_flag = true;
+
+    posori_task->_otg->setMaxLinearVelocity(0.30);
+    posori_task->_otg->setMaxLinearAcceleration(1.0);
+    posori_task->_otg->setMaxLinearJerk(5.0);
+
+    posori_task->_otg->setMaxAngularVelocity(M_PI/1.5);
+    posori_task->_otg->setMaxAngularAcceleration(3*M_PI);
+    posori_task->_otg->setMaxAngularJerk(15*M_PI);
+
+    posori_task->_kp_pos = 100.0;
+    posori_task->_kv_pos = 17.0;
+
+    posori_task->_kp_ori = 200.0;
+    posori_task->_kv_ori = 23.0;
+
+    posori_task->_kp_force = 1.0;
+    posori_task->_kv_force = 10.0;
+    posori_task->_ki_force = 0.7;
+
+    posori_task->_kp_moment = 6.0;
+    posori_task->_kv_moment = 8.0;
+    posori_task->_ki_moment = 1.0;
+
+    return posori_task;
 }
