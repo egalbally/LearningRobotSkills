@@ -87,20 +87,20 @@ vector<string> DEVICE_SENSED_TORQUE_KEYS = {
 	};
 
 // posori task state information (read)
-string ROBOT_EE_POS_KEY = "sai2::LearningSkills::haptic_control::robot::ee_pos";
-string ROBOT_EE_ORI_KEY = "sai2::LearningSkills::haptic_control::robot::ee_ori";
+string ROBOT_EE_POS_KEY = "sai2::LearningSkills::lead_control::robot::ee_pos";
+string ROBOT_EE_ORI_KEY = "sai2::LearningSkills::lead_control::robot::ee_ori";
 
 // dual proxy
-string ROBOT_PROXY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_proxy";
-string HAPTIC_PROXY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::haptic_proxy";
-string FORCE_SPACE_DIMENSION_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::force_space_dimension";
-string SIGMA_FORCE_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::sigma_force";
-string ROBOT_PROXY_ROT_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_proxy_rot";
-string ROBOT_DEFAULT_ROT_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_default_rot";
-string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::robot_default_pos";
+string ROBOT_PROXY_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_proxy";
+string HAPTIC_PROXY_KEY = "sai2::LearningSkills::lead_control::dual_proxy::haptic_proxy";
+string FORCE_SPACE_DIMENSION_KEY = "sai2::LearningSkills::lead_control::dual_proxy::force_space_dimension";
+string SIGMA_FORCE_KEY = "sai2::LearningSkills::lead_control::dual_proxy::sigma_force";
+string ROBOT_PROXY_ROT_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_proxy_rot";
+string ROBOT_DEFAULT_ROT_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_default_rot";
+string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_default_pos";
 
-string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::haptic_device_ready";
-string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::haptic_control::dual_proxy::controller_running";
+string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::lead_control::dual_proxy::haptic_device_ready";
+string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::lead_control::dual_proxy::controller_running";
 
 int controller_running = 0;
 Vector3d robot_ee_pos = Vector3d::Zero();
@@ -143,7 +143,6 @@ int main(int argc, char* argv[]) {
 	redis_client_local.connect();
 
 	string remote_ip = "127.0.0.1";      // local
-    // string remote_ip = "10.0.0.231";     // borns
 	int remote_port = 6379;
 	redis_client_remote = RedisClient();
 	redis_client_remote.connect(remote_ip, remote_port);
@@ -227,7 +226,7 @@ int main(int argc, char* argv[]) {
 	redis_client_local.addDoubleToWriteCallback(0, DEVICE_COMMANDED_GRIPPER_FORCE_KEYS[0], teleop_task->_commanded_gripper_force_device);
 
 	// setup data logging
-	string folder = "../../02-dual_proxy_motion_normal_force_haptic/data_logging/data/";
+	string folder = "../../lead_control_haptic/data_logging/data/";
 	string filename = "data";
     auto logger = new Logging::Logger(100000, folder + filename);
 	
@@ -277,8 +276,8 @@ int main(int argc, char* argv[]) {
 		if(state == INIT) {
   			// reset robot workspace center if haptic device was previously controlled
 			if(controller_running == 2 && prev_state == CONTROL) {
-				// robot_ee_pos_auto_offset = robot_ee_pos;
-				robot_ee_pos_auto_offset = Vector3d(0.426845,0.210365,0.530624);
+//				robot_ee_pos_auto_offset = Vector3d(0.426845,0.210365,0.530624);
+                robot_ee_pos_auto_offset = robot_ee_pos;
 				robot_ee_ori_auto_offset = robot_ee_ori;
 				// reset robot proxy to current robot pose
 				// robot_proxy = robot_ee_pos;

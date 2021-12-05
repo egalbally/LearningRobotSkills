@@ -6,6 +6,7 @@
 #include "tasks/JointTask.h"
 #include "tasks/PosOriTask.h"
 #include "filters/ButterworthFilter.h"
+#include "../src/Logger.h"
 #include "perception/ForceSpaceParticleFilter.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +20,7 @@
 #define AUTO_CONTROL            1
 #define HAPTIC_CONTROL          2
 #define NUM_RIGID_BODIES        1
+#define RIGID_BODY_OF_INTEREST  0
 
 #include <signal.h>
 bool runloop = false;
@@ -31,35 +33,35 @@ const string robot_file = "./resources/panda_arm.urdf";
 
 // redis keys:
 // robot local control loop
-string JOINT_ANGLES_KEY = "sai2::LearningSkills::support_control::simviz::sensors::q";
-string JOINT_VELOCITIES_KEY = "sai2::LearningSkills::support_control::simviz::sensors::dq";
-string ROBOT_COMMAND_TORQUES_KEY = "sai2::LearningSkills::support_control::simviz::actuators::tau_cmd";
-
-string ROBOT_SENSED_FORCE_KEY = "sai2::LearningSkills::support_control::simviz::sensors::sensed_force";
+string JOINT_ANGLES_KEY = "sai2::LearningSkills::lead_control::simviz::sensors::q";
+string JOINT_VELOCITIES_KEY = "sai2::LearningSkills::lead_control::simviz::sensors::dq";
+string ROBOT_COMMAND_TORQUES_KEY = "sai2::LearningSkills::lead_control::simviz::actuators::tau_cmd";
+string ROBOT_SENSED_FORCE_KEY = "sai2::LearningSkills::lead_control::simviz::sensors::sensed_force";
 
 string MASSMATRIX_KEY;
 string CORIOLIS_KEY;
 
 // posori task
-// read user parameters
-// string ROBOT_EE_POS_DES_KEY = "sai2::LearningSkills::support_control::robot::ee_pos_des";
+// read perception state
+string POS_RIGID_BODIES_KEY = "sai2::optitrack::pos_rigid_bodies";
+string ORI_RIGID_BODIES_KEY = "sai2::optitrack::ori_rigid_bodies";
 // write state information
-string ROBOT_EE_POS_KEY = "sai2::LearningSkills::support_control::robot::ee_pos";
-string ROBOT_EE_ORI_KEY = "sai2::LearningSkills::support_control::robot::ee_ori";
-string ROBOT_EE_FORCE_KEY = "sai2::LearningSkills::support_control::robot::ee_force";
-string ROBOT_EE_MOMENT_KEY = "sai2::LearningSkills::support_control::robot::ee_moment";
+string ROBOT_EE_POS_KEY = "sai2::LearningSkills::lead_control::robot::ee_pos";
+string ROBOT_EE_ORI_KEY = "sai2::LearningSkills::lead_control::robot::ee_ori";
+string ROBOT_EE_FORCE_KEY = "sai2::LearningSkills::lead_control::robot::ee_force";
+string ROBOT_EE_MOMENT_KEY = "sai2::LearningSkills::lead_control::robot::ee_moment";
 
 // dual proxy
-string ROBOT_PROXY_KEY = "sai2::LearningSkills::support_control::dual_proxy::robot_proxy";
-string ROBOT_PROXY_ROT_KEY = "sai2::LearningSkills::support_control::dual_proxy::robot_proxy_rot";
-string HAPTIC_PROXY_KEY = "sai2::LearningSkills::support_control::dual_proxy::haptic_proxy";
-string FORCE_SPACE_DIMENSION_KEY = "sai2::LearningSkills::support_control::dual_proxy::force_space_dimension";
-string SIGMA_FORCE_KEY = "sai2::LearningSkills::support_control::dual_proxy::sigma_force";
-string ROBOT_DEFAULT_ROT_KEY = "sai2::LearningSkills::support_control::dual_proxy::robot_default_rot";
-string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::support_control::dual_proxy::robot_default_pos";
+string ROBOT_PROXY_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_proxy";
+string ROBOT_PROXY_ROT_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_proxy_rot";
+string HAPTIC_PROXY_KEY = "sai2::LearningSkills::lead_control::dual_proxy::haptic_proxy";
+string FORCE_SPACE_DIMENSION_KEY = "sai2::LearningSkills::lead_control::dual_proxy::force_space_dimension";
+string SIGMA_FORCE_KEY = "sai2::LearningSkills::lead_control::dual_proxy::sigma_force";
+string ROBOT_DEFAULT_ROT_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_default_rot";
+string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_default_pos";
 
-string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::support_control::dual_proxy::haptic_device_ready";
-string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::support_control::dual_proxy::controller_running"; // 0 is off, 1 is auto control, 2 is haptic control
+string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::lead_control::dual_proxy::haptic_device_ready";
+string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::lead_control::dual_proxy::controller_running"; // 0 is off, 1 is auto control, 2 is haptic control
 
 RedisClient redis_client;
 
@@ -104,25 +106,18 @@ const bool flag_simulation = false;
 int main(int argc, char ** argv) {
 
     std::string robot_name;
-    std::string ee_pose;
-    std::string object_name;
 
     if(!flag_simulation) {
-        fprintf( stderr, "\nREMEMBER: load the correct ee file \nfrom the panda_ee_calibration directory \nto the Franka web interface \n\n");
 
-        if(argc < 4)
-        { 
-            fprintf( stderr, ">>> Usage: %s [ROBOT_NAME] [POSE_NUMBER] [OBJECT_NAME]\n", argv[0] );
+        if(argc < 2)
+        {
+            fprintf( stderr, ">>> Usage: %s ROBOT_NAME\n", argv[0] );
             fprintf( stderr, "    Robot name options: Bonnie or Clyde\n");
-            fprintf( stderr, "    Position number options: current, 1, 2, 3, or haptic\n");
-            fprintf( stderr, "    Object options: bottle or nut\n");
-            return 0;
+            return -1;
         }
 
         robot_name = argv[1];
-        ee_pose = argv[2];
-        object_name = argv[3];
-        
+
         if(robot_name == "Clyde")
         {
             ROBOT_COMMAND_TORQUES_KEY = "sai2::FrankaPanda::Clyde::actuators::fgc";
@@ -130,7 +125,7 @@ int main(int argc, char ** argv) {
             JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::Clyde::sensors::dq";
             MASSMATRIX_KEY = "sai2::FrankaPanda::Clyde::sensors::model::massmatrix";
             CORIOLIS_KEY = "sai2::FrankaPanda::Clyde::sensors::model::coriolis";
-            ROBOT_SENSED_FORCE_KEY = "sai2::ATIGamma_Sensor::Clyde::force_torque"; 
+            ROBOT_SENSED_FORCE_KEY = "sai2::ATIGamma_Sensor::Clyde::force_torque";  
         }
         else if(robot_name == "Bonnie")
         {
@@ -175,6 +170,10 @@ int main(int argc, char ** argv) {
     joint_task->_kp = 200.0;
     joint_task->_kv = 25.0;
     joint_task->_ki = 50.0;
+
+    // VectorXd q_init(dof);
+    // q_init << 0, -30, 0, -130, 0, 100, 0;
+    // q_init *= M_PI/180.0;
     joint_task->_desired_position = robot->_q; // use current robot config as init config
 
     // posori task
@@ -187,9 +186,54 @@ int main(int argc, char ** argv) {
 
     VectorXd posori_task_torques = VectorXd::Zero(dof);
 
+    // track robot's autonomous ori change during surface-surface alignment
+    Matrix3d R_proxy_robot = Matrix3d::Identity();
+
     // initialize desired robot pose as current pose
     Vector3d x_des = posori_task->_current_position;
     Matrix3d ori_des = posori_task->_current_orientation;
+
+    // rigid body positions from perception
+    double optitrack_angle = 0.0;
+    Vector3d pos_robot_ref_in_optitrack_frame = Vector3d::Zero();
+    Vector3d pos_robot_ref_in_robot_frame = Vector3d::Zero();
+
+    if(robot_name == "Clyde")
+    {
+        // angle from robot base frame +X to optitrack -Z w/ positive sense about robot base frame +Z
+        optitrack_angle = -17.5;
+
+        // measure position of reference point on robot in both optitrack and robot frames
+        pos_robot_ref_in_optitrack_frame = Vector3d(0.664136, 0.875408, 0.371283);
+        pos_robot_ref_in_robot_frame = Vector3d(0.230862, -0.236466, 0.893357);
+    }
+
+    else if(robot_name == "Bonnie")
+    {
+        // angle from robot base frame +X to optitrack -Z w/ positive sense about robot base frame +Z
+        optitrack_angle = 62.5;
+
+        // measure position of reference point on robot in both optitrack and robot frames
+        pos_robot_ref_in_optitrack_frame = Vector3d(-0.508397, 0.847871, 0.313138);
+        pos_robot_ref_in_robot_frame = Vector3d(0.048436, 0.275109, 0.922579);
+    }
+
+    // set offset from robot frame to rigid body perception (optitrack) frame
+    Matrix3d rot_optitrack_in_robot_frame;
+    rot_optitrack_in_robot_frame <<  sin(optitrack_angle * M_PI / 180.0),    0,  -cos(optitrack_angle * M_PI / 180.0),
+                                     -cos(optitrack_angle * M_PI / 180.0),   0,  -sin(optitrack_angle * M_PI / 180.0),
+                                     0,                                      1,   0;
+    // list of rigid body poses in world
+    MatrixXd pos_rigid_bodies(NUM_RIGID_BODIES, 3);
+    MatrixXd ori_rigid_bodies(NUM_RIGID_BODIES, 4);
+    pos_rigid_bodies.setZero();
+    ori_rigid_bodies.setZero();
+    // rigid body pose of interest
+    Vector3d        pos_rigid_body_in_optitrack_frame          = Vector3d::Zero();
+    Matrix3d        ori_rigid_body_in_optitrack_frame          = Matrix3d::Identity();
+    Quaterniond     ori_rigid_body_in_optitrack_frame_quat     = Quaterniond::Identity();
+    Vector3d        pos_rigid_body_in_robot_frame              = Vector3d::Zero();
+    Matrix3d        ori_rigid_body_in_robot_frame              = Matrix3d::Identity();
 
     // force sensing
     Matrix3d R_link_sensor = Matrix3d::Identity();
@@ -199,7 +243,6 @@ int main(int argc, char ** argv) {
 
     VectorXd sensed_force_moment_local_frame = VectorXd::Zero(6);
     VectorXd sensed_force_moment_world_frame = VectorXd::Zero(6);
-    
     VectorXd force_bias = VectorXd::Zero(6);
     double tool_mass = 0;
     Vector3d tool_com = Vector3d::Zero();
@@ -208,14 +251,9 @@ int main(int argc, char ** argv) {
     bool first_loop = true;
 
     if(!flag_simulation) {
-        if (object_name == "bottle"){
-            force_bias << -2.38828, 3.18213, 1.63922, -0.0221789, 0.2543, 0.0397122;
-            tool_mass = 1.38862;
-            tool_com = Vector3d(0.104441, -0.00357995, 0.0451504);        
-        }
-        else{
-            fprintf( stderr, "\n\n>>> Hey!! I think you need to calibrate the FT sensor for this new object\n\n");
-        }
+        force_bias << 1.50246, -8.19902, -0.695169, -0.987652, 0.290632, -0.0453239;
+        tool_mass = 0.33;
+        tool_com = Vector3d(-0.00492734, -0.00295005, 0.0859595);
     }
 
     // remove inertial forces from tool
@@ -252,19 +290,66 @@ int main(int argc, char ** argv) {
         redis_client.addEigenToReadCallback(0, CORIOLIS_KEY, coriolis_from_robot);
     }
 
+    redis_client.addEigenToReadCallback(0, ROBOT_PROXY_KEY, robot_proxy);
+    redis_client.addEigenToReadCallback(0, ROBOT_PROXY_ROT_KEY, robot_proxy_rot);
+    redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_device_ready);
+
     redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
 
     // Objects to write to redis
     redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
 
+    redis_client.addEigenToWriteCallback(0, HAPTIC_PROXY_KEY, haptic_proxy);
+    redis_client.addEigenToWriteCallback(0, SIGMA_FORCE_KEY, sigma_force);
+    redis_client.addIntToWriteCallback(0, FORCE_SPACE_DIMENSION_KEY, force_space_dimension);
+
     // write internal controller state to redis
-    redis_client.addEigenToWriteCallback(0, ROBOT_EE_POS_KEY, posori_task->_current_position);
-    redis_client.addEigenToWriteCallback(0, ROBOT_EE_ORI_KEY, posori_task->_current_orientation);
-    redis_client.addEigenToWriteCallback(0, ROBOT_EE_FORCE_KEY, posori_task->_sensed_force);
-    redis_client.addEigenToWriteCallback(0, ROBOT_EE_MOMENT_KEY, posori_task->_sensed_moment);
+    Vector3d robot_ee_pos = posori_task->_current_position;
+    Matrix3d robot_ee_ori = posori_task->_current_orientation;
+    Vector3d robot_ee_force = posori_task->_sensed_force;
+    Vector3d robot_ee_moment = posori_task->_sensed_moment;
+    redis_client.addEigenToWriteCallback(0, ROBOT_EE_POS_KEY, robot_ee_pos);
+    redis_client.addEigenToWriteCallback(0, ROBOT_EE_ORI_KEY, robot_ee_ori);
+    redis_client.addEigenToWriteCallback(0, ROBOT_EE_FORCE_KEY, robot_ee_force);
+    redis_client.addEigenToWriteCallback(0, ROBOT_EE_MOMENT_KEY, robot_ee_moment);
+
+    // setup data logging
+    string folder = "../../lead_control_robot/data_logging/data/";
+    string filename = "data";
+    auto logger = new Logging::Logger(100000, folder + filename);
+    
+    Vector3d log_ee_position = robot_ee_pos;
+    Vector3d log_ee_velocity = Vector3d::Zero();
+    Vector3d log_robot_proxy_position = robot_proxy;
+    VectorXd log_joint_angles = robot->_q;
+    VectorXd log_joint_velocities = robot->_dq;
+    VectorXd log_joint_command_torques = command_torques;
+    VectorXd log_sensed_force_moments = VectorXd::Zero(6);
+    Vector3d log_desired_force = Vector3d::Zero();
+
+    Matrix3d log_ee_orientation = robot_ee_ori; // TODO: add to logger
+
+    Vector3d log_posori_sensed_force = Vector3d::Zero();
+    Vector3d log_posori_sensed_moment = Vector3d::Zero();
+
+    logger->addVectorToLog(&log_ee_position, "robot_ee_position");
+    logger->addVectorToLog(&log_ee_velocity, "robot_ee_velocity");
+    logger->addVectorToLog(&log_robot_proxy_position, "robot_proxy_position");
+    logger->addVectorToLog(&log_joint_angles, "joint_angles");
+    logger->addVectorToLog(&log_joint_velocities, "joint_velocities");
+    logger->addVectorToLog(&log_joint_command_torques, "joint_command_torques");
+    logger->addVectorToLog(&log_sensed_force_moments, "sensed_forces_moments");
+    logger->addVectorToLog(&log_desired_force, "desired_force");
+
+    logger->addVectorToLog(&log_posori_sensed_force, "posori_sensed_force");
+    logger->addVectorToLog(&log_posori_sensed_moment, "posori_sensed_moment");
+
+    logger->start();
 
     // start particle filter thread
     runloop = true;
+    // redis_client.set(CONTROLLER_RUNNING_KEY,"1");
+    redis_client.set(CONTROLLER_RUNNING_KEY,"2");
     thread particle_filter_thread(particle_filter);
 
     // create a timer
@@ -323,9 +408,14 @@ int main(int argc, char ** argv) {
         sensed_force_moment_world_frame.head(3) = R_world_sensor * sensed_force_moment_local_frame.head(3);
         sensed_force_moment_world_frame.tail(3) = R_world_sensor * sensed_force_moment_local_frame.tail(3);
 
-        // -------
-        //  INIT
-        // -------
+        // update rigid body poses from perception
+        pos_rigid_body_in_optitrack_frame               = pos_rigid_bodies.row(RIGID_BODY_OF_INTEREST);
+        ori_rigid_body_in_optitrack_frame_quat.coeffs() = ori_rigid_bodies.row(RIGID_BODY_OF_INTEREST);
+        ori_rigid_body_in_optitrack_frame               = ori_rigid_body_in_optitrack_frame_quat.toRotationMatrix(); // convert quaternion to rotation matrix
+        // transform rigid body poses to robot frame
+        pos_rigid_body_in_robot_frame = rot_optitrack_in_robot_frame * (pos_rigid_body_in_optitrack_frame - pos_robot_ref_in_optitrack_frame) + pos_robot_ref_in_robot_frame;
+        ori_rigid_body_in_robot_frame = rot_optitrack_in_robot_frame * ori_rigid_body_in_optitrack_frame;
+
         if(state == INIT) {
             joint_task->updateTaskModel(MatrixXd::Identity(dof,dof));
 
@@ -341,48 +431,24 @@ int main(int argc, char ** argv) {
                 joint_task->_kv = 13.0;
                 joint_task->_ki = 0.0;
 
-                state = HAPTIC_CONTROL;
+                state = AUTO_CONTROL;
 
-                std::cout << "Entering HAPTIC control state" << std::endl;
+                std::cout << "Entering AUTO control state" << std::endl;
 
-                redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
+                redis_client.set(CONTROLLER_RUNNING_KEY, "1"); // set to auto control mode
+
+//                state = HAPTIC_CONTROL;
+
+//                std::cout << "Entering HAPTIC control state" << std::endl;
+
+//                redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
             }
         }
 
-        // ---------
-        //  CONTROL
-        // ---------
         else if(state == AUTO_CONTROL) {
-            
-            // update desired robot position  
-            if (ee_pose == "current"){
-                x_des = posori_task->_current_position;
-                ori_des = posori_task->_current_orientation;
-            }
-            else if (ee_pose == "1" && robot_name == "Clyde"){
-                x_des = Vector3d(0.590389,-0.228316,0.382640);
-                ori_des <<  0.788791,0.602405,0.122137,
-                            0.597496,-0.798104,0.077641,
-                            0.144250,0.011734,-0.989472;
-            }
-            else if (ee_pose == "2" && robot_name == "Clyde"){
-                x_des = Vector3d(0.534752,0.277420,0.198154);
-                ori_des <<  0.834505,0.376097,0.402682,
-                            0.066158,-0.793924,0.604406,
-                            0.547015,-0.477739,-0.687416;
-            }
-            else if (ee_pose == "3" && robot_name == "Clyde"){
-                x_des = Vector3d(0.477163,0.255271,0.251263);
-                ori_des <<  0.880546,0.472678,0.034846,
-                            0.363598,-0.720843,0.590070,
-                            0.304031,-0.506914,-0.806600;
-            }
-            else{ // TODO: set this one through haptics
-                x_des = Vector3d(0.590389,-0.228316,0.382640);
-                ori_des <<  0.788791,0.602405,0.122137,
-                            0.597496,-0.798104,0.077641,
-                            0.144250,0.011734,-0.989472;
-            }
+            // update desired robot pose as rigid body position
+            x_des = pos_rigid_body_in_robot_frame;
+            ori_des = ori_rigid_body_in_robot_frame;
 
             // dual proxy
             posori_task->_sigma_force = sigma_force;
@@ -403,7 +469,8 @@ int main(int argc, char ** argv) {
             // control
             posori_task->_desired_position = motion_proxy;
             posori_task->_desired_force = desired_force;
-            posori_task->_desired_orientation = ori_des; // comment to keep constant orientation
+            // posori_task->_desired_orientation = robot_proxy_rot; // comment to keep constant orientation
+            posori_task->_desired_orientation = ori_des;
 
             try {
                 posori_task->computeTorques(posori_task_torques);
@@ -420,20 +487,20 @@ int main(int argc, char ** argv) {
 
             command_torques = posori_task_torques + joint_task_torques + coriolis;
 
-            // command_torques.setZero();
+            command_torques.setZero();
 
             // remember values
             prev_desired_force = desired_force;
 
-            // switch to haptic control in failure state
-            if((x_des - robot_position).norm() < 0.05)
-            {
-                state = HAPTIC_CONTROL;
+          //   // switch to haptic control in failure state
+          //   if((x_des - robot_position).norm() < 0.05)
+          //   {
+          //    state = HAPTIC_CONTROL;
 
-                std::cout << "Entering HAPTIC control state" << std::endl;
+          //    std::cout << "Entering HAPTIC control state" << std::endl;
 
-                redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
-            }
+                // redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
+          //   }
         }
 
         else if(state == HAPTIC_CONTROL) {
@@ -492,8 +559,8 @@ int main(int argc, char ** argv) {
         redis_client.executeWriteCallback(0);
 
         // particle filter
-        pfilter_motion_control_buffer.push(sigma_motion * (x_des - posori_task->_current_position) * freq_ratio_filter_control);
-        pfilter_force_control_buffer.push(sigma_force * (x_des - posori_task->_current_position) * freq_ratio_filter_control);
+        pfilter_motion_control_buffer.push(sigma_motion * (robot_proxy - posori_task->_current_position) * freq_ratio_filter_control);
+        pfilter_force_control_buffer.push(sigma_force * (robot_proxy - posori_task->_current_position) * freq_ratio_filter_control);
         // pfilter_motion_control_buffer.push(sigma_motion * posori_task->_Lambda_modified.block<3,3>(0,0) * posori_task->_linear_motion_control * freq_ratio_filter_control);
         // pfilter_force_control_buffer.push(sigma_force * posori_task->_linear_force_control * freq_ratio_filter_control);
 
@@ -516,6 +583,26 @@ int main(int argc, char ** argv) {
             pfilter_sensed_velocity_buffer.pop();
             pfilter_sensed_force_buffer.pop();          
         }
+
+        // update logger values
+        Vector3d ee_vel = Vector3d::Zero();
+        robot->linearVelocity(ee_vel, link_name, pos_in_link);
+        robot_ee_pos = posori_task->_current_position;
+        robot_ee_ori = posori_task->_current_orientation;
+        robot_ee_force = posori_task->_sensed_force;
+        robot_ee_moment = posori_task->_sensed_moment;
+
+        log_ee_position = haptic_proxy;
+        log_ee_velocity = ee_vel;
+        log_robot_proxy_position = robot_proxy;
+        log_joint_angles = robot->_q;
+        log_joint_velocities = robot->_dq;
+        log_joint_command_torques = command_torques;
+        log_sensed_force_moments = sensed_force_moment_world_frame;
+        log_desired_force = posori_task->_desired_force;
+
+        log_posori_sensed_force = robot_ee_force;
+        log_posori_sensed_moment = robot_ee_moment;
     
         controller_counter++;
     }
@@ -523,9 +610,14 @@ int main(int argc, char ** argv) {
     // wait for particle filter thread
     particle_filter_thread.join();
 
+    // stop logger
+    logger->stop();
+
     //// Send zero force/torque to robot ////
     command_torques.setZero();
     redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
+    redis_client.set(CONTROLLER_RUNNING_KEY,"0");
+
 
     double end_time = timer.elapsedTime();
     std::cout << "\n";
@@ -600,8 +692,6 @@ void particle_filter() {
     std::cout << "Particle Filter Loop run time  : " << end_time << " seconds\n";
     std::cout << "Particle Filter Loop updates   : " << timer.elapsedCycles() << "\n";
     std::cout << "Particle Filter Loop frequency : " << timer.elapsedCycles()/end_time << "Hz\n";
-
-    delete pfilter;
 }
 
 unique_ptr<Sai2Primitives::PosOriTask> init_posori(Sai2Model::Sai2Model* robot,
