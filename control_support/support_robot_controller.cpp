@@ -252,10 +252,18 @@ int main(int argc, char ** argv) {
         redis_client.addEigenToReadCallback(0, CORIOLIS_KEY, coriolis_from_robot);
     }
 
+    redis_client.addEigenToReadCallback(0, ROBOT_PROXY_KEY, robot_proxy);
+    redis_client.addEigenToReadCallback(0, ROBOT_PROXY_ROT_KEY, robot_proxy_rot);
+    redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_device_ready);
+
     redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
 
     // Objects to write to redis
     redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
+
+    redis_client.addEigenToWriteCallback(0, HAPTIC_PROXY_KEY, haptic_proxy);
+    redis_client.addEigenToWriteCallback(0, SIGMA_FORCE_KEY, sigma_force);
+    redis_client.addIntToWriteCallback(0, FORCE_SPACE_DIMENSION_KEY, force_space_dimension);
 
     // write internal controller state to redis
     redis_client.addEigenToWriteCallback(0, ROBOT_EE_POS_KEY, posori_task->_current_position);
@@ -265,6 +273,8 @@ int main(int argc, char ** argv) {
 
     // start particle filter thread
     runloop = true;
+    // redis_client.set(CONTROLLER_RUNNING_KEY,"1");
+    redis_client.set(CONTROLLER_RUNNING_KEY,"2");
     thread particle_filter_thread(particle_filter);
 
     // create a timer
@@ -426,14 +436,14 @@ int main(int argc, char ** argv) {
             prev_desired_force = desired_force;
 
             // switch to haptic control in failure state
-            if((x_des - robot_position).norm() < 0.05)
-            {
-                state = HAPTIC_CONTROL;
+            // if((x_des - robot_position).norm() < 0.05)
+            // {
+            //     state = HAPTIC_CONTROL;
 
-                std::cout << "Entering HAPTIC control state" << std::endl;
+            //     std::cout << "Entering HAPTIC control state" << std::endl;
 
-                redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
-            }
+            //     redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
+            // }
         }
 
         else if(state == HAPTIC_CONTROL) {
