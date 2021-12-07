@@ -114,8 +114,8 @@ int main(int argc, char ** argv) {
         { 
             fprintf( stderr, ">>> Usage: %s [ROBOT_NAME] [POSE_NUMBER] [OBJECT_NAME]\n", argv[0] );
             fprintf( stderr, "    Robot name options: Bonnie or Clyde\n");
-            fprintf( stderr, "    Position number options: current, 1, 2, 3, or haptic\n");
-            fprintf( stderr, "    Object options: bottle or nut\n");
+            fprintf( stderr, "    Position number options: \n>>current\n>>1\n>>2\n>>3\n>>haptic\n\n");
+            fprintf( stderr, "    Object options: bottle\n>>cap\n>>bulb\n\n");
             return 0;
         }
 
@@ -209,9 +209,17 @@ int main(int argc, char ** argv) {
 
     if(!flag_simulation) {
         if (object_name == "bottle"){
-            force_bias << -2.38828, 3.18213, 1.63922, -0.0221789, 0.2543, 0.0397122;
-            tool_mass = 1.38862;
             tool_com = Vector3d(0.104441, -0.00357995, 0.0451504);        
+            tool_mass = 1.38862;
+            force_bias << -2.38828, 3.18213, 1.63922, -0.0221789, 0.2543, 0.0397122;
+        }
+        else if (object_name == "cap"){
+            tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
+            tool_mass = 1.30151;
+            force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
+        }
+        else if (object_name == "bulb"){
+            fprintf("\n Haven't calibrated the sensor for bulb on Clyde yet \n\n")
         }
         else{
             fprintf( stderr, "\n\n>>> Hey!! I think you need to calibrate the FT sensor for this new object\n\n");
