@@ -16,7 +16,7 @@
 #include <random>
 #include <queue>
 
-#define NUM_RIGID_BODIES        2
+#define NUM_RIGID_BODIES        1
 #define RIGID_BODY_OF_INTEREST  0
 
 #define LAST_JOINT_MAX_ROT       120.0 * (M_PI / 180.0) // max angle of last joint on panda (in radians)
@@ -168,8 +168,8 @@ int main(int argc, char ** argv) {
     signal(SIGINT, &sighandler);
 
     int state = INIT;
-    int primitive = GO_TO_POINT;
-    // int primitive = SCREW;
+    // int primitive = GO_TO_POINT;
+    int primitive = SCREW;
 
     // load robots
     Affine3d T_world_robot = Affine3d::Identity();
@@ -223,13 +223,13 @@ int main(int argc, char ** argv) {
     unsigned long long screw_counter = 0;
     // check initial screw direction
     bool screw_back_off = false; // false to screw forward, true to back off
-    double last_joint_angle_init = q_init(dof-1);
-    if(last_joint_angle_init >= 0.0) {
-        screw_back_off = false;
-    }
-    else {
-        screw_back_off = true;
-    }
+    // double last_joint_angle_init = q_init(dof-1);
+    // if(last_joint_angle_init >= 0.0) {
+    //     screw_back_off = false;
+    // }
+    // else {
+    //     screw_back_off = true;
+    // }
 
     // initialize desired robot pose as current pose
     Vector3d x_des = posori_task->_current_position;
@@ -286,8 +286,8 @@ int main(int argc, char ** argv) {
                                      0,                                      1,   0;
     // list of rigid body poses in world
     // TODO: fix crash from not adding extra row in reading optitrack positions
-    MatrixXd pos_rigid_bodies(NUM_RIGID_BODIES+1, 3);
-    MatrixXd ori_rigid_bodies(NUM_RIGID_BODIES+1, 4);
+    MatrixXd pos_rigid_bodies(NUM_RIGID_BODIES, 3);
+    MatrixXd ori_rigid_bodies(NUM_RIGID_BODIES, 4);
     pos_rigid_bodies.setZero();
     ori_rigid_bodies.setZero();
 
@@ -334,9 +334,9 @@ int main(int argc, char ** argv) {
     // rotation from cap to robot ee frame (depends on Bonnie or Clyde)
     Matrix3d rot_rigid_body_in_ee_frame = Matrix3d::Identity();
     if(robot_name == "Clyde") {
-        rot_rigid_body_in_ee_frame <<    0.0, 1.0,  0.0,
-                                         0.0, 0.0, -1.0,
-                                        -1.0, 0.0,  0.0;
+        rot_rigid_body_in_ee_frame <<   -1.0,  0.0,  0.0,
+                                         0.0,  0.0, -1.0,
+                                         0.0, -1.0,  0.0;
     }
     if(robot_name == "Bonnie") {
         rot_rigid_body_in_ee_frame <<    0.0, -1.0,  0.0,
@@ -596,21 +596,26 @@ int main(int argc, char ** argv) {
             if(primitive == GO_TO_POINT) {
                 // update desired robot position as rigid body position
                 x_des = pos_rigid_body_in_robot_frame;
-                // x_des(2) -= 0.05;
+                
+                x_des(2) += 0.1;
 
                 // align robot ee frame with optitrack object axes
                 // ori_des.col(0) = -ori_rigid_body_in_robot_frame.col(2);
                 // ori_des.col(1) =  ori_rigid_body_in_robot_frame.col(0);
                 // ori_des.col(2) = -ori_rigid_body_in_robot_frame.col(1);
 
-                // ori_des = ori_rigid_body_in_robot_frame * rot_rigid_body_in_ee_frame.transpose();
-                ori_des = ori_des * AngleAxisd(20.0 * M_PI / 180.0, Vector3d::UnitX());
+                // ori_des.col(0) = -ori_rigid_body_in_robot_frame.col(0);
+                // ori_des.col(1) = -ori_rigid_body_in_robot_frame.col(2);
+                // ori_des.col(2) = -ori_rigid_body_in_robot_frame.col(1);
 
-                if((robot_position - x_des).norm() < 3e-2) {
-                    posori_task->reInitializeTask();
+                ori_des = ori_rigid_body_in_robot_frame * rot_rigid_body_in_ee_frame.transpose();
+                // ori_des = ori_des * AngleAxisd(20.0 * M_PI / 180.0, Vector3d::UnitX());
+
+                // if((robot_position - x_des).norm() < 3e-2) {
+                    // posori_task->reInitializeTask();
                     // primitive = MAKE_CONTACT;
-                    cout << "transitioning from GO_TO_POINT to MAKE_CONTACT" << endl << endl;
-                }
+                    // cout << "transitioning from GO_TO_POINT to MAKE_CONTACT" << endl << endl;
+                // }
             }
             // make contact with the object of interest, assuming contact is in local +Z direction
             else if(primitive == MAKE_CONTACT) {
@@ -651,7 +656,7 @@ int main(int argc, char ** argv) {
             else if(primitive == SCREW) {
                 // update desired robot position as rigid body position
                 x_des = pos_rigid_body_in_robot_frame;
-                x_des(2) += 0.2;
+                x_des(2) += 0.1;
 
                 // align robot ee frame with optitrack object axes
                 // ori_des.col(0) = -ori_rigid_body_in_robot_frame.col(2);
@@ -659,6 +664,7 @@ int main(int argc, char ** argv) {
                 // ori_des.col(2) = -ori_rigid_body_in_robot_frame.col(1);
 
                 ori_des = ori_rigid_body_in_robot_frame * rot_rigid_body_in_ee_frame.transpose();
+                // ori_des = ori_des * AngleAxisd(M_PI / 4.0, rot_rigid_body_in_ee_frame *  Vector3d::UnitY());
                 // ori_des = ori_des * AngleAxisd(20.0 * M_PI / 180.0, Vector3d::UnitX());
 
                 // double last_joint_angle = joint_task->_current_position(dof-1);
@@ -697,23 +703,39 @@ int main(int argc, char ** argv) {
 
                 // screw forward
                 if(screw_back_off == false) {
-                    ori_des = ori_des * AngleAxisd(M_PI / 2.0, ori_rigid_body_in_robot_frame *  Vector3d::UnitY());
+                    ori_des = ori_des * AngleAxisd(M_PI / 4.0, rot_rigid_body_in_ee_frame * Vector3d::UnitY());
+                    // posori_task->_desired_orientation = ori_des;
+
                     if(controller_counter % 1000 == 0) cout << "SCREWING" << endl << endl;
-                    if(posori_task->goalOrientationReached(3e-2, true)) {
-                        screw_back_off = true;
-                        // screw_counter = 0;
-                        R_init = robot_orientation;
-                    }
+
+                    // if(posori_task->goalOrientationReached(2e-1, false)) {
+                    //     screw_back_off = true;
+                    //     screw_counter = 0;
+                    //     R_init = robot_orientation;
+                    // }
                 }
                 // back off
-                else {
-                    ori_des = ori_des * AngleAxisd(M_PI / 2.0, ori_rigid_body_in_robot_frame * -Vector3d::UnitY());
-                    if(controller_counter % 1000 == 0) cout << "SCREWING" << endl << endl;
-                    if(posori_task->goalOrientationReached(3e-2, true)) {
-                        screw_back_off = false;
-                        // screw_counter = 0;
-                        R_init = robot_orientation;
-                    }
+                else if(screw_back_off == true) {
+                    ori_des = ori_des * AngleAxisd(-M_PI / 4.0, rot_rigid_body_in_ee_frame * Vector3d::UnitY());
+                    // posori_task->_desired_orientation = ori_des;
+
+                    if(controller_counter % 1000 == 0) cout << "BACKING OFF" << endl << endl;
+
+                    // if(posori_task->goalOrientationReached(2e-1, false)) {
+                    //     screw_back_off = false;
+                    //     screw_counter = 0;
+                    //     R_init = robot_orientation;
+                    // }
+                }
+
+                // switch screw direction when desired orientation is reached
+                Vector3d ori_error = Vector3d::Zero();
+                Sai2Model::orientationError(ori_error, ori_des, robot_orientation);
+                if(controller_counter%1000 == 0) cout << "ori_error: " << ori_error << endl << ori_error.norm() << endl << endl;
+                if(ori_error.norm() < 2e-1) {
+                    screw_back_off = !screw_back_off;
+                    screw_counter = 0;
+                    cout << "switched screw direction" << endl << endl;
                 }
 
                 // desired_ori = robot_orientation * AngleAxisd(last_joint_angle_to_limit, Vector3d::UnitZ());
@@ -747,11 +769,12 @@ int main(int argc, char ** argv) {
             if(controller_counter % 1000 == 0) {
                 cout << "pos des = " << endl << x_des << endl << endl;
                 cout << "ori des = " << endl << ori_des << endl << endl;
-                cout << "des force = " << endl << desired_force << endl << endl;
-                cout << "robot pos = " << endl << robot_position << endl << endl;
-                cout << "robot pos to x des norm = " << endl << (robot_position - x_des).norm() << endl << endl;
+                // cout << "des force = " << endl << desired_force << endl << endl;
+                // cout << "robot pos = " << endl << robot_position << endl << endl;
+                // cout << "robot pos to x des norm = " << endl << (robot_position - x_des).norm() << endl << endl;
                 cout << "primitive = " << endl << primitive << endl << endl;
                 cout << "rel_pos_cap_in_ee_frame = " << endl << rel_pos_cap_in_ee_frame << endl << endl;
+                cout << "pos_rigid_body_in_robot_frame = " << endl << pos_rigid_body_in_robot_frame << endl << endl;
             }
 
             try {
@@ -769,7 +792,7 @@ int main(int argc, char ** argv) {
 
             command_torques = posori_task_torques + joint_task_torques + coriolis;
 
-            command_torques.setZero();
+            // command_torques.setZero();
 
             // remember values
             prev_desired_force = desired_force;
