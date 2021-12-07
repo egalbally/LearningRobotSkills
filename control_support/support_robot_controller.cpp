@@ -112,10 +112,10 @@ int main(int argc, char ** argv) {
 
         if(argc < 4)
         { 
-            fprintf( stderr, ">>> Usage: %s [ROBOT_NAME] [POSE_NUMBER] [OBJECT_NAME]\n", argv[0] );
-            fprintf( stderr, "    Robot name options: Bonnie or Clyde\n");
-            fprintf( stderr, "    Position number options: \n>>current\n>>1\n>>2\n>>3\n>>haptic\n\n");
-            fprintf( stderr, "    Object options: bottle\n>>cap\n>>bulb\n\n");
+            fprintf( stderr, ">>> Usage: %s [ROBOT_NAME] [POSE_NUMBER] [OBJECT_NAME]\n\n", argv[0] );
+            fprintf( stderr, "Robot name options: \n    > Bonnie\n    > Clyde\n\n");
+            fprintf( stderr, "Position number options: \n    > current\n    > 1\n    > 2\n    > 3\n    > haptic\n\n");
+            fprintf( stderr, "Object options:\n    > bottle\n    > cap\n    > bulb\n\n");
             return 0;
         }
 
@@ -207,6 +207,7 @@ int main(int argc, char ** argv) {
     Vector3d init_force = Vector3d::Zero();
     bool first_loop = true;
 
+    // Force sensor calibration info   //TODO: eventually change to read from file
     if(!flag_simulation) {
         if (object_name == "bottle"){
             tool_com = Vector3d(0.104441, -0.00357995, 0.0451504);        
@@ -219,7 +220,10 @@ int main(int argc, char ** argv) {
             force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
         }
         else if (object_name == "bulb"){
-            fprintf(stderr, "\n Haven't calibrated the sensor for bulb on Clyde yet \n\n");
+            tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
+            tool_mass = 1.30151;
+            force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
+            fprintf(stderr, "\n WARNING: Haven't calibrated the sensor for bulb on Clyde yet \nUsing cap parameters for now!\n\n");
         }
         else{
             fprintf(stderr, "\n\n>>> Hey!! I think you need to calibrate the FT sensor for this new object\n\n");
@@ -281,8 +285,7 @@ int main(int argc, char ** argv) {
 
     // start particle filter thread
     runloop = true;
-    // redis_client.set(CONTROLLER_RUNNING_KEY,"1");
-    redis_client.set(CONTROLLER_RUNNING_KEY,"2");
+    redis_client.set(CONTROLLER_RUNNING_KEY,"1"); //controller runs in auto unless you select "haptic"  
     thread particle_filter_thread(particle_filter);
 
     // create a timer
@@ -345,39 +348,48 @@ int main(int argc, char ** argv) {
         //  INIT
         // -------
         if(state == INIT) {
+            
             joint_task->updateTaskModel(MatrixXd::Identity(dof,dof));
-
             joint_task->computeTorques(joint_task_torques);
             command_torques = joint_task_torques + coriolis;
 
-            if(haptic_device_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
-                // Reinitialize controllers
-                posori_task->reInitializeTask();
-                joint_task->reInitializeTask();
+            // Go to haptic control
+            if (ee_pose == "haptic"){
+                std::cout << ">>>>>>>>> HAPTIC CONTROL" << std::endl;
+                if(haptic_device_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
+                    // Reinitialize controllers
+                    posori_task->reInitializeTask();
+                    joint_task->reInitializeTask();
 
-                joint_task->_kp = 50.0;
-                joint_task->_kv = 13.0;
-                joint_task->_ki = 0.0;
-
-                state = HAPTIC_CONTROL;
-
-                std::cout << "Entering HAPTIC control state" << std::endl;
-
+                    joint_task->_kp = 50.0;
+                    joint_task->_kv = 13.0;
+                    joint_task->_ki = 0.0;
+                }
                 redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
+            }
+
+            // Go to auto control
+            else{
+                state = AUTO_CONTROL;
+                std::cout << ">>>>>>>>> AUTO CONTROL" << std::endl;
             }
         }
 
-        // ---------
-        //  CONTROL
-        // ---------
-        else if(state == AUTO_CONTROL) {
+        // ---------------
+        //  AUTO CONTROL
+        // ---------------
+        else if(state == AUTO_CONTROL) {  
+
+        //TODO: 
+        //  - eventually move the predefined poses to a header file!
+        //  - make the 1, 2, 3 be updated through a redis key
             
             // update desired robot position  
             if (ee_pose == "current"){
                 x_des = posori_task->_current_position;
                 ori_des = posori_task->_current_orientation;
             }
-            else if (ee_pose == "1" && robot_name == "Clyde"){
+            else if (ee_pose == "1" && robot_name == "Clyde"){  
                 x_des = Vector3d(0.590389,-0.228316,0.382640);
                 ori_des <<  0.788791,0.602405,0.122137,
                             0.597496,-0.798104,0.077641,
@@ -395,11 +407,26 @@ int main(int argc, char ** argv) {
                             0.363598,-0.720843,0.590070,
                             0.304031,-0.506914,-0.806600;
             }
-            else{ // TODO: set this one through haptics
-                x_des = Vector3d(0.590389,-0.228316,0.382640);
-                ori_des <<  0.788791,0.602405,0.122137,
-                            0.597496,-0.798104,0.077641,
-                            0.144250,0.011734,-0.989472;
+            else if (ee_pose == "1" && robot_name == "Bonnie"){  
+                x_des = Vector3d(0.517257,0.007546,0.315411);
+                ori_des <<  0.982502,-0.069996,0.172598,
+                            0.156398,-0.193162,-0.968622,
+                            0.101139,0.978667,-0.178835;
+            }
+            else if (ee_pose == "2" && robot_name == "Bonnie"){
+                x_des = Vector3d(0.532017,0.061075,0.253898);
+                ori_des <<  0.863648,0.244067,0.441070,
+                            0.501602,-0.502992,-0.703843,
+                            0.050070,0.829115,-0.556832;
+            }
+            else if (ee_pose == "3" && robot_name == "Bonnie"){
+                x_des = Vector3d(0.502429,-0.079782,0.261830);
+                ori_des <<  0.793059,-0.599992,-0.105202,
+                            -0.331097,-0.279620,-0.901214,
+                            0.511304,0.749548,-0.420411;
+            }
+            else{ 
+                fprintf(stderr, "\n\n>>>>>>>>> CAREFUL: You did not choose a valid position\n\n");
             }
 
             // dual proxy
@@ -454,6 +481,9 @@ int main(int argc, char ** argv) {
             // }
         }
 
+        // ---------------
+        //  HAPTIC CONTROL
+        // ---------------
         else if(state == HAPTIC_CONTROL) {
             // dual proxy
             posori_task->_sigma_force = sigma_force;
@@ -494,12 +524,12 @@ int main(int argc, char ** argv) {
             // remember values
             prev_desired_force = desired_force;
 
-            // switch to haptic control in failure state
+            // switch back to auto control 
             if(haptic_device_ready == 2)
             {
                 state = AUTO_CONTROL;
 
-                std::cout << "Entering AUTO control state" << std::endl;
+                std::cout << "Switched to AUTO CONTROL" << std::endl;
 
                 redis_client.set(CONTROLLER_RUNNING_KEY, "1"); // set to auto control mode
             }
@@ -509,7 +539,9 @@ int main(int argc, char ** argv) {
         robot->position(haptic_proxy, link_name, pos_in_link);
         redis_client.executeWriteCallback(0);
 
-        // particle filter
+        // ------------------
+        //  PARTICLE FILTER
+        // ------------------
         pfilter_motion_control_buffer.push(sigma_motion * (x_des - posori_task->_current_position) * freq_ratio_filter_control);
         pfilter_force_control_buffer.push(sigma_force * (x_des - posori_task->_current_position) * freq_ratio_filter_control);
         // pfilter_motion_control_buffer.push(sigma_motion * posori_task->_Lambda_modified.block<3,3>(0,0) * posori_task->_linear_motion_control * freq_ratio_filter_control);
