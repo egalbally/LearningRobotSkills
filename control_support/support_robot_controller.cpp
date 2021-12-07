@@ -219,10 +219,10 @@ int main(int argc, char ** argv) {
             force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
         }
         else if (object_name == "bulb"){
-            fprintf("\n Haven't calibrated the sensor for bulb on Clyde yet \n\n")
+            fprintf(stderr, "\n Haven't calibrated the sensor for bulb on Clyde yet \n\n");
         }
         else{
-            fprintf( stderr, "\n\n>>> Hey!! I think you need to calibrate the FT sensor for this new object\n\n");
+            fprintf(stderr, "\n\n>>> Hey!! I think you need to calibrate the FT sensor for this new object\n\n");
         }
     }
 
