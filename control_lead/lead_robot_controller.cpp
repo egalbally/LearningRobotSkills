@@ -123,17 +123,20 @@ const bool flag_simulation = false;
 int main(int argc, char ** argv) {
 
     std::string robot_name;
+    std::string object_name;
 
     if(!flag_simulation) {
-
-        if(argc < 2)
-        {
-            fprintf( stderr, ">>> Usage: %s ROBOT_NAME\n", argv[0] );
-            fprintf( stderr, "    Robot name options: Bonnie or Clyde\n");
-            return -1;
+        
+        if(argc < 3)
+        { 
+            fprintf( stderr, ">>> Usage: %s [ROBOT_NAME] [OBJECT_NAME]\n\n", argv[0] );
+            fprintf( stderr, "Robot name options: \n    > Bonnie\n    > Clyde\n\n");
+            fprintf( stderr, "Object options:\n    > bottle\n    > cap\n    > bulb\n\n");
+            return 0;
         }
 
         robot_name = argv[1];
+        object_name = argv[2];
 
         if(robot_name == "Clyde")
         {
@@ -357,15 +360,24 @@ int main(int argc, char ** argv) {
     bool first_loop = true;
 
     if(!flag_simulation) {
-        if(robot_name == "Clyde") {
-            force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
-            tool_mass = 1.30151;
-            tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
+        if (object_name == "bottle"){
+            tool_com = Vector3d(0.104441, -0.00357995, 0.0451504);        
+            tool_mass = 1.38862;
+            force_bias << -2.38828, 3.18213, 1.63922, -0.0221789, 0.2543, 0.0397122;
         }
-        if(robot_name == "Bonnie") {
-            force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
-            tool_mass = 1.30151;
+        else if (object_name == "cap"){
             tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
+            tool_mass = 1.30151;
+            force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
+        }
+        else if (object_name == "bulb"){
+            tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
+            tool_mass = 1.30151;
+            force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
+            fprintf(stderr, "\n WARNING: Haven't calibrated the sensor for bulb on Clyde yet \nUsing cap parameters for now!\n\n");
+        }
+        else{
+            fprintf(stderr, "\n\n>>> Hey!! I think you need to calibrate the FT sensor for this new object\n\n");
         }
     }
 
