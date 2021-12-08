@@ -16,7 +16,7 @@
 #include <random>
 #include <queue>
 
-#define NUM_RIGID_BODIES        1
+#define NUM_RIGID_BODIES        2
 #define RIGID_BODY_OF_INTEREST  0
 
 #define LAST_JOINT_MAX_ROT       120.0 * (M_PI / 180.0) // max angle of last joint on panda (in radians)
@@ -285,9 +285,9 @@ int main(int argc, char ** argv) {
                                      -cos(optitrack_angle * M_PI / 180.0),   0,  -sin(optitrack_angle * M_PI / 180.0),
                                      0,                                      1,   0;
     // list of rigid body poses in world
-    // TODO: fix crash from not adding extra row in reading optitrack positions
-    MatrixXd pos_rigid_bodies(NUM_RIGID_BODIES, 3);
-    MatrixXd ori_rigid_bodies(NUM_RIGID_BODIES, 4);
+    // note: dynamic matrix causes crash in redis get
+    Matrix<double, NUM_RIGID_BODIES, 3> pos_rigid_bodies;
+    Matrix<double, NUM_RIGID_BODIES, 4> ori_rigid_bodies;
     pos_rigid_bodies.setZero();
     ori_rigid_bodies.setZero();
 
@@ -508,6 +508,10 @@ int main(int argc, char ** argv) {
             robot->updateInverseInertia();
             coriolis = coriolis_from_robot;
         }
+
+        // read rigid body poses (not part of redis callback due to bug)
+        pos_rigid_bodies = redis_client.getEigenMatrixJSON(POS_RIGID_BODIES_KEY);
+        ori_rigid_bodies = redis_client.getEigenMatrixJSON(ORI_RIGID_BODIES_KEY);
 
         // if(primitive == SCREW) posori_task->removeTaskJacobianColumn(dof-1);
 
@@ -774,7 +778,8 @@ int main(int argc, char ** argv) {
                 // cout << "robot pos to x des norm = " << endl << (robot_position - x_des).norm() << endl << endl;
                 cout << "primitive = " << endl << primitive << endl << endl;
                 cout << "rel_pos_cap_in_ee_frame = " << endl << rel_pos_cap_in_ee_frame << endl << endl;
-                cout << "pos_rigid_body_in_robot_frame = " << endl << pos_rigid_body_in_robot_frame << endl << endl;
+                // cout << "pos_rigid_bodies = " << endl << pos_rigid_bodies << endl << endl;
+                // cout << "ori_rigid_bodies = " << endl << ori_rigid_bodies << endl << endl;
             }
 
             try {
@@ -792,7 +797,7 @@ int main(int argc, char ** argv) {
 
             command_torques = posori_task_torques + joint_task_torques + coriolis;
 
-            // command_torques.setZero();
+            command_torques.setZero();
 
             // remember values
             prev_desired_force = desired_force;
