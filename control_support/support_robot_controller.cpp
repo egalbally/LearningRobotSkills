@@ -60,6 +60,7 @@ string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::support_control::dual_prox
 
 string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::support_control::dual_proxy::haptic_device_ready";
 string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::support_control::dual_proxy::controller_running"; // 0 is off, 1 is auto control, 2 is haptic control
+string HAPTIC_CONTROL_ON_KEY = "sai2::LearningSkills::support_control::dual_proxy::haptic_control_on"; // 0 is auto control, 1 is haptic control
 
 RedisClient redis_client;
 
@@ -172,9 +173,9 @@ int main(int argc, char ** argv) {
     joint_task->_use_interpolation_flag = true;
     joint_task->_use_velocity_saturation_flag = false;
 
-    joint_task->_kp = 200.0;
-    joint_task->_kv = 25.0;
-    joint_task->_ki = 50.0;
+    // joint_task->_kp = 200.0;
+    // joint_task->_kv = 25.0;
+    // joint_task->_ki = 50.0;
     joint_task->_desired_position = robot->_q; // use current robot config as init config
 
     // posori task
@@ -242,7 +243,14 @@ int main(int argc, char ** argv) {
     double max_force = 10.0;
 
     int haptic_device_ready = 0;
-    redis_client.set(HAPTIC_DEVICE_READY_KEY, "0");
+    redis_client.set(HAPTIC_DEVICE_READY_KEY, std::to_string(haptic_device_ready));
+
+    // start in auto control mode
+    int haptic_control_on = 1;
+    // if(ee_pose == "haptic") {
+    //     haptic_control_on = 1;
+    // }
+    redis_client.set(HAPTIC_CONTROL_ON_KEY, std::to_string(haptic_control_on));
 
     Vector3d robot_proxy = Vector3d::Zero();
     Matrix3d robot_proxy_rot = Matrix3d::Identity();
@@ -267,6 +275,7 @@ int main(int argc, char ** argv) {
     redis_client.addEigenToReadCallback(0, ROBOT_PROXY_KEY, robot_proxy);
     redis_client.addEigenToReadCallback(0, ROBOT_PROXY_ROT_KEY, robot_proxy_rot);
     redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_device_ready);
+    redis_client.addIntToReadCallback(0, HAPTIC_CONTROL_ON_KEY, haptic_control_on);
 
     redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
 
@@ -353,26 +362,35 @@ int main(int argc, char ** argv) {
             joint_task->computeTorques(joint_task_torques);
             command_torques = joint_task_torques + coriolis;
 
-            // Go to haptic control
-            if (ee_pose == "haptic"){
-                std::cout << ">>>>>>>>> HAPTIC CONTROL" << std::endl;
-                if(haptic_device_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
-                    // Reinitialize controllers
-                    posori_task->reInitializeTask();
-                    joint_task->reInitializeTask();
+            // go to auto control if haptic control is disabled
+            if(haptic_control_on == 0)
+            {
+                state = AUTO_CONTROL;
 
-                    joint_task->_kp = 50.0;
-                    joint_task->_kv = 13.0;
-                    joint_task->_ki = 0.0;
-                }
-                redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
+                std::cout << ">>>>>>>>> AUTO CONTROL" << std::endl;
+            }
+            // otherwise go to haptic control
+            else if(haptic_device_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
+                // Reinitialize controllers
+                posori_task->reInitializeTask();
+                joint_task->reInitializeTask();
+
+                joint_task->_kp = 50.0;
+                joint_task->_kv = 13.0;
+                joint_task->_ki = 0.0;
+                
+                state = HAPTIC_CONTROL;
+                
+                std::cout << ">>>>>>>>> HAPTIC CONTROL" << std::endl;
+
+                // redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
             }
 
             // Go to auto control
-            else{
-                state = AUTO_CONTROL;
-                std::cout << ">>>>>>>>> AUTO CONTROL" << std::endl;
-            }
+            // if(ee_pose != "haptic") {
+            //     state = AUTO_CONTROL;
+            //     std::cout << ">>>>>>>>> AUTO CONTROL" << std::endl;
+            // }
         }
 
         // ---------------
@@ -470,15 +488,18 @@ int main(int argc, char ** argv) {
             // remember values
             prev_desired_force = desired_force;
 
-            // switch to haptic control in failure state
-            // if((x_des - robot_position).norm() < 0.05)
-            // {
-            //     state = HAPTIC_CONTROL;
+            // switch to haptic control when on user request
+            // if((x_des - robot_position).norm() < 0.05) {
+            if(haptic_control_on == 1) {
+                // Reinitialize controllers
+                posori_task->reInitializeTask();
+                joint_task->reInitializeTask();
 
-            //     std::cout << "Entering HAPTIC control state" << std::endl;
+                state = INIT;
+                std::cout << "Exiting AUTO control state" << std::endl;
 
             //     redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
-            // }
+            }
         }
 
         // ---------------
@@ -525,13 +546,16 @@ int main(int argc, char ** argv) {
             prev_desired_force = desired_force;
 
             // switch back to auto control 
-            if(haptic_device_ready == 2)
-            {
-                state = AUTO_CONTROL;
+            // if(haptic_device_ready == 2) {
+            if(haptic_control_on == 0) {
+                // Reinitialize controllers
+                posori_task->reInitializeTask();
+                joint_task->reInitializeTask();
 
-                std::cout << "Switched to AUTO CONTROL" << std::endl;
+                state = INIT;
+                std::cout << "Exiting HAPTIC control state" << std::endl;
 
-                redis_client.set(CONTROLLER_RUNNING_KEY, "1"); // set to auto control mode
+            //     redis_client.set(CONTROLLER_RUNNING_KEY, "1"); // set to auto control mode
             }
         }
 
@@ -576,6 +600,7 @@ int main(int argc, char ** argv) {
     //// Send zero force/torque to robot ////
     command_torques.setZero();
     redis_client.setEigenMatrixJSON(ROBOT_COMMAND_TORQUES_KEY, command_torques);
+    redis_client.set(CONTROLLER_RUNNING_KEY, "0");
 
     double end_time = timer.elapsedTime();
     std::cout << "\n";

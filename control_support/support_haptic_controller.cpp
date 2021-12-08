@@ -101,6 +101,7 @@ string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::support_control::dual_prox
 
 string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::support_control::dual_proxy::haptic_device_ready";
 string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::support_control::dual_proxy::controller_running";
+string HAPTIC_CONTROL_ON_KEY = "sai2::LearningSkills::support_control::dual_proxy::haptic_control_on";
 
 int controller_running = 0;
 Vector3d robot_ee_pos = Vector3d::Zero();
@@ -109,6 +110,7 @@ Vector3d robot_ee_pos_auto_offset = Vector3d::Zero();
 Matrix3d robot_ee_ori_auto_offset = Matrix3d::Identity();
 
 int haptic_device_ready = 0;
+int haptic_control_on = 0;
 int force_space_dimension = 0;
 Matrix3d sigma_force = Matrix3d::Zero();
 Vector3d haptic_proxy = Vector3d::Zero();
@@ -205,6 +207,9 @@ int main(int argc, char* argv[]) {
 
 	Vector3d proxy_position_device_frame = Vector3d::Zero();
 
+	// initialize control state depending on how robot controller was launched
+	haptic_control_on = std::stoi(redis_client_remote.get(HAPTIC_CONTROL_ON_KEY));
+
 	// setup redis keys to be updated with the callback
 	redis_client_local.createReadCallback(0);
 	redis_client_local.createWriteCallback(0);
@@ -275,20 +280,26 @@ int main(int argc, char* argv[]) {
 
 		if(state == INIT) {
   			// reset robot workspace center if haptic device was previously controlled
-			if(controller_running == 2 && prev_state == CONTROL) {
-//				robot_ee_pos_auto_offset = Vector3d(0.426845,0.210365,0.530624);
+			// if(controller_running == 2 && prev_state == CONTROL) {
+			// monitor robot pose when haptic control is disabled
+			if(haptic_control_on == 0) {
+				// reset robot center to current robot pose
                 robot_ee_pos_auto_offset = robot_ee_pos;
 				robot_ee_ori_auto_offset = robot_ee_ori;
-				// reset robot proxy to current robot pose
 				// robot_proxy = robot_ee_pos;
 				// robot_proxy_rot = robot_ee_ori;
 
 				teleop_task->setRobotCenter(robot_ee_pos_auto_offset, robot_ee_ori_auto_offset);
-
 				teleop_task->setDeviceCenter(teleop_task->_current_position_device, teleop_task->_current_rotation_device);
 				// device_rot_center = teleop_task->_current_rotation_device;
 				// device_pos_center = teleop_task->_current_position_device;
 				teleop_task->computeHapticCommands6d(robot_proxy, robot_proxy_rot);
+
+				// switch to haptic control mode when gripper is pressed
+				if(gripper_state) {
+					haptic_control_on = 1;
+					redis_client_remote.set(HAPTIC_CONTROL_ON_KEY, std::to_string(haptic_control_on));
+				}
 			}
 
 			// compute homing haptic device
@@ -306,11 +317,15 @@ int main(int argc, char* argv[]) {
 				haptic_device_ready = 1;
 
 				// change haptic device to CONTROL state when robot is in haptic control mode
-				if(controller_running == 2) {					
+				// if(controller_running == 2) {
+				if(haptic_control_on == 1) {
 					std::cout << "controlling haptic device" << std::endl;
 					prev_state = INIT;
 					state = CONTROL;
 				}
+			}
+			else {
+				haptic_device_ready = 0;
 			}
 		}
 
@@ -348,7 +363,8 @@ int main(int argc, char* argv[]) {
 			prev_desired_force = desired_force;
 
 			// change haptic device back to INIT state when robot is in auto control mode
-			if(controller_running == 1) {
+			// if(controller_running == 1) {
+			if(haptic_control_on == 0) {
 				haptic_device_ready = 0;
 				std::cout << "resetting haptic device to init state" << std::endl;
 				prev_state = CONTROL;
@@ -407,9 +423,12 @@ void communication(int delay) {
 	redis_client_remote.addEigenToReadCallback(0, ROBOT_EE_POS_KEY, robot_ee_pos);
 	redis_client_remote.addEigenToReadCallback(0, ROBOT_EE_ORI_KEY, robot_ee_ori);
 
+	redis_client_remote.addIntToReadCallback(0, HAPTIC_CONTROL_ON_KEY, haptic_control_on);
+
 	redis_client_remote.addEigenToWriteCallback(0, ROBOT_PROXY_KEY, delayed_robot_proxy);
 	redis_client_remote.addEigenToWriteCallback(0, ROBOT_PROXY_ROT_KEY, delayed_robot_proxy_rot);
 	redis_client_remote.addIntToWriteCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_device_ready);
+	// redis_client_remote.addIntToWriteCallback(0, HAPTIC_CONTROL_ON_KEY, haptic_control_on);
 
 	// create a timer
 	double communication_freq = 50.0;
