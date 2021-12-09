@@ -209,8 +209,9 @@ int main(int argc, char ** argv) {
     const string link_name = "end_effector";
     // Vector3d pos_in_link = Vector3d(0.0, 0.015, 0.28);
     // Vector3d pos_in_link = Vector3d(0.0, 0.0, -0.15); // optitrack calibration
+    // Vector3d pos_in_link = Vector3d(0.0, 0.0, -0.145); // optitrack calibration
     Vector3d pos_in_link = Vector3d::Zero();
-    if(robot_name == "Clyde") pos_in_link = Vector3d(0.16151, -0.0294118, 0.137382); // cap grasp
+    if(robot_name == "Clyde") pos_in_link = Vector3d(0.151746, -0.0442918, 0.143337); // cap grasp
     if(robot_name == "Bonnie") pos_in_link = Vector3d(0.131569, -0.00721577, 0.161644); // cap grasp
     Matrix3d rot_in_link = Matrix3d::Identity();
     unique_ptr<Sai2Primitives::PosOriTask> posori_task = init_posori(robot, link_name, pos_in_link, rot_in_link);
@@ -245,6 +246,15 @@ int main(int argc, char ** argv) {
     Vector3d pos_robot_ref_in_optitrack_frame = Vector3d::Zero();
     Vector3d pos_robot_ref_in_robot_frame = Vector3d::Zero();
 
+    // measure cap position in end-effector frame (for pos_in_link in posori task)
+    Vector3d pos_cap_in_optitrack_frame = Vector3d::Zero();
+    Vector3d rel_pos_cap_in_robot_frame = Vector3d::Zero();
+    Vector3d rel_pos_robot_ref_in_ee_frame = Vector3d::Zero();
+    Matrix3d rot_robot_ref_in_robot_frame = Matrix3d::Identity();
+
+    // rotation from cap to robot ee frame
+    Matrix3d rot_rigid_body_in_ee_frame = Matrix3d::Identity();
+
     if(robot_name == "Clyde")
     {
         // angle from robot base frame +X to optitrack -Z w/ positive sense about robot base frame +Z
@@ -252,15 +262,28 @@ int main(int argc, char ** argv) {
 
         // measure position of reference point on robot in both optitrack and robot frames
         // the robot ref y-position in optitrack frame should match z-position in robot frame
-        pos_robot_ref_in_optitrack_frame = Vector3d(0.389816, 0.784016, 0.506797);
-        pos_robot_ref_in_robot_frame = Vector3d(0.254116, 0.117725, 0.786114);
+        rel_pos_robot_ref_in_ee_frame = Vector3d(0.0, 0.0, -0.145);
+        pos_robot_ref_in_optitrack_frame = Vector3d(0.411232, 0.916824, 0.277217);
+        pos_robot_ref_in_robot_frame = Vector3d(0.448276, 0.041935, 0.919100);
+        rot_robot_ref_in_robot_frame <<  0.760475,  0.647613,  0.047708,
+                                         0.636659, -0.729113, -0.251118,
+                                        -0.127842,  0.221343, -0.966780;
+        pos_cap_in_optitrack_frame = Vector3d(0.327137, 0.608862, 0.198385);
+        
+        // optitrack rigid body positions (cap, robot ref)
+        // robot ref position in robot frame
+        // robot ref ori in robot frame
 
         // 127.0.0.1:6379> get sai2::optitrack::pos_rigid_bodies
-        // "[[0.183147,0.591577,0.334187],[0.389816,0.784016,0.506797]]" // cap and robot ref in optitrack frame
+        // "[[0.327137,0.608862,0.198385],[0.411232,0.916824,0.277217]]"
         // 127.0.0.1:6379> get sai2::LearningSkills::lead_control::robot::ee_pos
-        // "[0.254116,0.117725,0.786114]" // robot ref in robot frame
+        // "[0.448276,0.041935,0.919100]"
         // 127.0.0.1:6379> get sai2::LearningSkills::lead_control::robot::ee_ori
-        // "[[0.448861,0.658382,0.604200],[0.834585,-0.550511,-0.020136],[0.319361,0.513294,-0.796578]]"
+        // "[[0.760475,0.647613,0.047708],[0.636659,-0.729113,-0.251118],[-0.127842,0.221343,-0.966780]]"
+
+        rot_rigid_body_in_ee_frame <<   -1.0,  0.0,  0.0,
+                                         0.0,  0.0, -1.0,
+                                         0.0, -1.0,  0.0;
     }
 
     else if(robot_name == "Bonnie")
@@ -268,20 +291,30 @@ int main(int argc, char ** argv) {
         // angle from robot base frame +X to optitrack -Z w/ positive sense about robot base frame +Z
         optitrack_angle = 62.5;
 
-        // pos_robot_ref_in_optitrack_frame = Vector3d(-0.508397, 0.847871, 0.313138);
-        // pos_robot_ref_in_robot_frame = Vector3d(0.048436, 0.275109, 0.922579);
-
         // measure position of reference point on robot in both optitrack and robot frames
         // the robot ref y-position in optitrack frame should match z-position in robot frame
+        rel_pos_robot_ref_in_ee_frame = Vector3d(0.0, 0.0, -0.15);
         pos_robot_ref_in_optitrack_frame = Vector3d(-0.140498, 0.883456, 0.233513);
         pos_robot_ref_in_robot_frame = Vector3d(0.385345, 0.216355, 0.884632);
+        rot_robot_ref_in_robot_frame <<  0.980947,  0.194037,  0.009617,
+                                         0.192927, -0.967129, -0.165650,
+                                        -0.022841,  0.164349, -0.986138;
+        pos_cap_in_optitrack_frame = Vector3d(-0.015708, 0.571941, 0.190267);
+
+        // optitrack rigid body positions (cap, robot ref)
+        // robot ref position in robot frame
+        // robot ref ori in robot frame
 
         // 127.0.0.1:6379> get sai2::optitrack::pos_rigid_bodies
-        // "[[-0.015708,0.571941,0.190267],[-0.140498,0.883456,0.233513]]" // cap and robot ref in optitrack frame
+        // "[[-0.015708,0.571941,0.190267],[-0.140498,0.883456,0.233513]]"
         // 127.0.0.1:6379> get sai2::LearningSkills::lead_control::robot::ee_pos
-        // "[0.385345,0.216355,0.884632]" // robot ref in robot frame
+        // "[0.385345,0.216355,0.884632]"
         // 127.0.0.1:6379> get sai2::LearningSkills::lead_control::robot::ee_ori
         // "[[0.980947,0.194037,0.009617],[0.192927,-0.967129,-0.165650],[-0.022841,0.164349,-0.986138]]"
+
+        rot_rigid_body_in_ee_frame <<    0.0, 1.0,  0.0,
+                                         0.0, 0.0, -1.0,
+                                        -1.0, 0.0,  0.0;
     }
 
     // set offset from robot frame to rigid body perception (optitrack) frame
@@ -303,51 +336,10 @@ int main(int argc, char ** argv) {
     Vector3d        pos_rigid_body_in_robot_frame              = Vector3d::Zero();
     Matrix3d        ori_rigid_body_in_robot_frame              = Matrix3d::Identity();
 
-
     // measure cap position in end-effector frame (for pos_in_link in posori task)
-    Matrix3d rot_robot_ref_in_robot_frame = Matrix3d::Identity();
-    Vector3d pos_cap_in_optitrack_frame = Vector3d::Zero();
-    Vector3d rel_pos_cap_in_robot_frame = Vector3d::Zero();
-
-    if(robot_name == "Clyde") {
-
-        rot_robot_ref_in_robot_frame << 0.448861,  0.658382,  0.604200,
-                                        0.834585, -0.550511, -0.020136,
-                                        0.319361,  0.513294, -0.796578;
-        pos_cap_in_optitrack_frame = Vector3d(0.183147, 0.591577, 0.334187);
-        
-        // 127.0.0.1:6379> get sai2::optitrack::pos_rigid_bodies
-        // "[[0.183147,0.591577,0.334187],[0.389816,0.784016,0.506797]]" // cap and robot ref in optitrack frame
-        // 127.0.0.1:6379> get sai2::LearningSkills::lead_control::robot::ee_pos
-        // "[0.254116,0.117725,0.786114]" // robot ref in robot frame
-        // 127.0.0.1:6379> get sai2::LearningSkills::lead_control::robot::ee_ori
-        // "[[0.448861,0.658382,0.604200],[0.834585,-0.550511,-0.020136],[0.319361,0.513294,-0.796578]]"
-
-    }
-    if(robot_name == "Bonnie") {
-        rot_robot_ref_in_robot_frame <<  0.980947,  0.194037,  0.009617,
-                                         0.192927, -0.967129, -0.165650,
-                                        -0.022841,  0.164349, -0.986138;
-        pos_cap_in_optitrack_frame = Vector3d(-0.015708, 0.571941, 0.190267);
-    }
-
-    Vector3d rel_pos_robot_ref_in_ee_frame = Vector3d(0.0, 0.0, -0.15);
     rel_pos_cap_in_robot_frame = rot_optitrack_in_robot_frame * (pos_cap_in_optitrack_frame - pos_robot_ref_in_optitrack_frame) - (rot_robot_ref_in_robot_frame * -rel_pos_robot_ref_in_ee_frame);
     
     Vector3d rel_pos_cap_in_ee_frame = rot_robot_ref_in_robot_frame.transpose() * rel_pos_cap_in_robot_frame;
-
-    // rotation from cap to robot ee frame (depends on Bonnie or Clyde)
-    Matrix3d rot_rigid_body_in_ee_frame = Matrix3d::Identity();
-    if(robot_name == "Clyde") {
-        rot_rigid_body_in_ee_frame <<   -1.0,  0.0,  0.0,
-                                         0.0,  0.0, -1.0,
-                                         0.0, -1.0,  0.0;
-    }
-    if(robot_name == "Bonnie") {
-        rot_rigid_body_in_ee_frame <<    0.0, 1.0,  0.0,
-                                         0.0, 0.0, -1.0,
-                                        -1.0, 0.0,  0.0;
-    }
 
     // force sensing
     Matrix3d R_link_sensor = Matrix3d::Identity();
@@ -619,18 +611,18 @@ int main(int argc, char ** argv) {
                 // update desired robot position as rigid body position
                 x_des = pos_rigid_body_in_robot_frame;
                 
-                x_des(2) += 0.1;
+                // x_des(2) += 0.1;
 
                 // align robot ee frame with optitrack object axes
-                ori_des.col(0) = -ori_rigid_body_in_robot_frame.col(2);
-                ori_des.col(1) =  ori_rigid_body_in_robot_frame.col(0);
-                ori_des.col(2) = -ori_rigid_body_in_robot_frame.col(1);
+                // ori_des.col(0) = -ori_rigid_body_in_robot_frame.col(2);
+                // ori_des.col(1) =  ori_rigid_body_in_robot_frame.col(0);
+                // ori_des.col(2) = -ori_rigid_body_in_robot_frame.col(1);
 
                 // ori_des.col(0) = -ori_rigid_body_in_robot_frame.col(0);
                 // ori_des.col(1) = -ori_rigid_body_in_robot_frame.col(2);
                 // ori_des.col(2) = -ori_rigid_body_in_robot_frame.col(1);
 
-                // ori_des = ori_rigid_body_in_robot_frame * rot_rigid_body_in_ee_frame.transpose();
+                ori_des = ori_rigid_body_in_robot_frame * rot_rigid_body_in_ee_frame.transpose();
                 // ori_des = ori_des * AngleAxisd(20.0 * M_PI / 180.0, Vector3d::UnitX());
 
                 // if((robot_position - x_des).norm() < 3e-2) {
@@ -639,7 +631,7 @@ int main(int argc, char ** argv) {
                     // cout << "transitioning from GO_TO_POINT to MAKE_CONTACT" << endl << endl;
                 // }
 
-                if(controller_counter > 10000) task_failed = true;
+                if(controller_counter == 10000) task_failed = true;
             }
             // make contact with the object of interest, assuming contact is in local +Z direction
             else if(primitive == MAKE_CONTACT) {
