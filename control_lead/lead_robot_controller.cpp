@@ -78,7 +78,8 @@ string ROBOT_DEFAULT_ROT_KEY = "sai2::LearningSkills::lead_control::dual_proxy::
 string ROBOT_DEFAULT_POS_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_default_pos";
 
 string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::lead_control::dual_proxy::haptic_device_ready";
-string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::lead_control::dual_proxy::controller_running"; // 0 is off, 1 is auto control, 2 is haptic control
+string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::lead_control::dual_proxy::controller_running";
+string HAPTIC_CONTROL_ON_KEY = "sai2::LearningSkills::lead_control::dual_proxy::haptic_control_on"; // 0 is auto control, 1 is haptic control
 
 RedisClient redis_client;
 
@@ -123,20 +124,23 @@ const bool flag_simulation = false;
 int main(int argc, char ** argv) {
 
     std::string robot_name;
+    std::string init_control_mode;
     std::string object_name;
 
     if(!flag_simulation) {
         
-        if(argc < 3)
+        if(argc < 4)
         { 
             fprintf( stderr, ">>> Usage: %s [ROBOT_NAME] [OBJECT_NAME]\n\n", argv[0] );
             fprintf( stderr, "Robot name options: \n    > Bonnie\n    > Clyde\n\n");
+            fprintf( stderr, "Initial control mode options: \n    > auto\n    > haptic\n\n");
             fprintf( stderr, "Object options:\n    > bottle\n    > cap\n    > bulb\n\n");
             return 0;
         }
 
         robot_name = argv[1];
-        object_name = argv[2];
+        init_control_mode = argv[2];
+        object_name = argv[3];
 
         if(robot_name == "Clyde")
         {
@@ -168,8 +172,8 @@ int main(int argc, char ** argv) {
     signal(SIGINT, &sighandler);
 
     int state = INIT;
-    // int primitive = GO_TO_POINT;
-    int primitive = SCREW;
+    int primitive = GO_TO_POINT;
+    // int primitive = SCREW;
 
     // load robots
     Affine3d T_world_robot = Affine3d::Identity();
@@ -190,9 +194,9 @@ int main(int argc, char ** argv) {
     joint_task->_use_interpolation_flag = true;
     joint_task->_use_velocity_saturation_flag = false;
 
-    joint_task->_kp = 200.0;
-    joint_task->_kv = 25.0;
-    joint_task->_ki = 50.0;
+    // joint_task->_kp = 200.0;
+    // joint_task->_kv = 25.0;
+    // joint_task->_ki = 50.0;
 
     VectorXd q_init(dof);
     // q_init << 0, -30, 0, -130, 0, 100, 0;
@@ -219,6 +223,7 @@ int main(int argc, char ** argv) {
     Matrix3d R_proxy_robot = Matrix3d::Identity();
 
     // primitive parameters
+    bool task_failed = false; // flag for failure mode
     unsigned long long make_contact_counter = 0;
     unsigned long long screw_counter = 0;
     // check initial screw direction
@@ -339,9 +344,9 @@ int main(int argc, char ** argv) {
                                          0.0, -1.0,  0.0;
     }
     if(robot_name == "Bonnie") {
-        rot_rigid_body_in_ee_frame <<    0.0, -1.0,  0.0,
-                                         0.0,  0.0, -1.0,
-                                         1.0,  0.0,  0.0;
+        rot_rigid_body_in_ee_frame <<    0.0, 1.0,  0.0,
+                                         0.0, 0.0, -1.0,
+                                        -1.0, 0.0,  0.0;
     }
 
     // force sensing
@@ -393,7 +398,14 @@ int main(int argc, char ** argv) {
     double max_force = 10.0;
 
     int haptic_device_ready = 0;
-    redis_client.set(HAPTIC_DEVICE_READY_KEY, "0");
+    redis_client.set(HAPTIC_DEVICE_READY_KEY, std::to_string(haptic_device_ready));
+
+    // start in auto control mode unless user started in haptic mode
+    int haptic_control_on = 0;
+    if(init_control_mode == "haptic") {
+        haptic_control_on = 1;
+    }
+    redis_client.set(HAPTIC_CONTROL_ON_KEY, std::to_string(haptic_control_on));
 
     Vector3d robot_proxy = Vector3d::Zero();
     Matrix3d robot_proxy_rot = Matrix3d::Identity();
@@ -418,11 +430,9 @@ int main(int argc, char ** argv) {
     redis_client.addEigenToReadCallback(0, ROBOT_PROXY_KEY, robot_proxy);
     redis_client.addEigenToReadCallback(0, ROBOT_PROXY_ROT_KEY, robot_proxy_rot);
     redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_device_ready);
+    redis_client.addIntToReadCallback(0, HAPTIC_CONTROL_ON_KEY, haptic_control_on);
 
     redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
-
-    redis_client.addEigenToReadCallback(0, POS_RIGID_BODIES_KEY, pos_rigid_bodies);
-    redis_client.addEigenToReadCallback(0, ORI_RIGID_BODIES_KEY, ori_rigid_bodies);
 
     // Objects to write to redis
     redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
@@ -558,38 +568,46 @@ int main(int argc, char ** argv) {
         ori_rigid_body_in_robot_frame = rot_optitrack_in_robot_frame * ori_rigid_body_in_optitrack_frame;
 
         if(state == INIT) {
-            joint_task->updateTaskModel(MatrixXd::Identity(dof,dof));
 
+            joint_task->updateTaskModel(MatrixXd::Identity(dof,dof));
             joint_task->computeTorques(joint_task_torques);
             command_torques = joint_task_torques + coriolis;
 
-            state = AUTO_CONTROL;
+            // after task failure, hold current joint position until user intervenes
+            if(task_failed == true) {
+                if(haptic_control_on == 1) {
+                    task_failed = false;
+                    std::cout << "Exiting FAILURE" << std::endl;
+                }
+            }
+            // otherwise, proceed with auto or haptic control as usual
+            else {
+                // go to auto control if haptic control is disabled
+                if(haptic_control_on == 0)
+                {
+                    state = AUTO_CONTROL;
 
-            std::cout << "Entering AUTO control state" << std::endl;
+                    std::cout << ">>>>>>>>> AUTO CONTROL" << std::endl << std::endl;
+                }
+                // otherwise go to haptic control
+                else if(haptic_device_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
+                    // Reinitialize controllers
+                    posori_task->reInitializeTask();
+                    joint_task->reInitializeTask();
 
-            redis_client.set(CONTROLLER_RUNNING_KEY, "1"); // set to auto control mode
-
-            posori_task->reInitializeTask();
-            joint_task->reInitializeTask();
-
-            if(haptic_device_ready && (joint_task->_desired_position - joint_task->_current_position).norm() < 0.2) {
-                // Reinitialize controllers
-                posori_task->reInitializeTask();
-                joint_task->reInitializeTask();
-
-                joint_task->_kp = 50.0;
-                joint_task->_kv = 13.0;
-                joint_task->_ki = 0.0;
-
-                state = HAPTIC_CONTROL;
-
-                std::cout << "Entering HAPTIC control state" << std::endl;
-
-                redis_client.set(CONTROLLER_RUNNING_KEY,"2"); // set to haptic control mode
+                    joint_task->_kp = 50.0;
+                    joint_task->_kv = 13.0;
+                    joint_task->_ki = 0.0;
+                    
+                    state = HAPTIC_CONTROL;
+                    
+                    std::cout << ">>>>>>>>> HAPTIC CONTROL" << std::endl << std::endl;
+                }
             }
         }
 
         else if(state == AUTO_CONTROL) {
+
             Vector3d robot_position = posori_task->_current_position;
             Matrix3d robot_orientation = posori_task->_current_orientation;
             Vector3d desired_force = Vector3d::Zero();
@@ -604,15 +622,15 @@ int main(int argc, char ** argv) {
                 x_des(2) += 0.1;
 
                 // align robot ee frame with optitrack object axes
-                // ori_des.col(0) = -ori_rigid_body_in_robot_frame.col(2);
-                // ori_des.col(1) =  ori_rigid_body_in_robot_frame.col(0);
-                // ori_des.col(2) = -ori_rigid_body_in_robot_frame.col(1);
+                ori_des.col(0) = -ori_rigid_body_in_robot_frame.col(2);
+                ori_des.col(1) =  ori_rigid_body_in_robot_frame.col(0);
+                ori_des.col(2) = -ori_rigid_body_in_robot_frame.col(1);
 
                 // ori_des.col(0) = -ori_rigid_body_in_robot_frame.col(0);
                 // ori_des.col(1) = -ori_rigid_body_in_robot_frame.col(2);
                 // ori_des.col(2) = -ori_rigid_body_in_robot_frame.col(1);
 
-                ori_des = ori_rigid_body_in_robot_frame * rot_rigid_body_in_ee_frame.transpose();
+                // ori_des = ori_rigid_body_in_robot_frame * rot_rigid_body_in_ee_frame.transpose();
                 // ori_des = ori_des * AngleAxisd(20.0 * M_PI / 180.0, Vector3d::UnitX());
 
                 // if((robot_position - x_des).norm() < 3e-2) {
@@ -620,6 +638,8 @@ int main(int argc, char ** argv) {
                     // primitive = MAKE_CONTACT;
                     // cout << "transitioning from GO_TO_POINT to MAKE_CONTACT" << endl << endl;
                 // }
+
+                if(controller_counter > 10000) task_failed = true;
             }
             // make contact with the object of interest, assuming contact is in local +Z direction
             else if(primitive == MAKE_CONTACT) {
@@ -770,6 +790,7 @@ int main(int argc, char ** argv) {
             // posori_task->_desired_orientation = robot_proxy_rot; // comment to keep constant orientation
             posori_task->_desired_orientation = ori_des;
 
+            // TODO: remove test prints
             if(controller_counter % 1000 == 0) {
                 cout << "pos des = " << endl << x_des << endl << endl;
                 cout << "ori des = " << endl << ori_des << endl << endl;
@@ -797,20 +818,31 @@ int main(int argc, char ** argv) {
 
             command_torques = posori_task_torques + joint_task_torques + coriolis;
 
-            command_torques.setZero();
+            // command_torques.setZero();
 
             // remember values
             prev_desired_force = desired_force;
 
-          //   // switch to haptic control in failure state
-          //   if((x_des - robot_position).norm() < 0.05)
-          //   {
-          //    state = HAPTIC_CONTROL;
+            // switch to haptic control in failure state
+            // TODO: change if condition to check for failure state
+            if(task_failed == true) {
+                // Reinitialize controllers
+                posori_task->reInitializeTask();
+                joint_task->reInitializeTask();
 
-          //    std::cout << "Entering HAPTIC control state" << std::endl;
+                state = INIT;
+                std::cout << "FAILURE, requesting user intervention" << std::endl;
+                std::cout << "When ready, press haptic gripper" << std::endl << std::endl;
+            }
+            // switch to haptic control on user request
+            if(haptic_control_on == 1) {
+                // Reinitialize controllers
+                posori_task->reInitializeTask();
+                joint_task->reInitializeTask();
 
-                // redis_client.set(CONTROLLER_RUNNING_KEY, "2"); // set to haptic control mode
-          //   }
+                state = INIT;
+                std::cout << "Exiting AUTO control state on user request" << std::endl << std::endl;
+            }
         }
 
         else if(state == HAPTIC_CONTROL) {
@@ -853,14 +885,14 @@ int main(int argc, char ** argv) {
             // remember values
             prev_desired_force = desired_force;
 
-            // switch to haptic control in failure state
-            if(haptic_device_ready == 2)
-            {
-                state = AUTO_CONTROL;
+            // switch back to auto control 
+            if(haptic_control_on == 0) {
+                // Reinitialize controllers
+                posori_task->reInitializeTask();
+                joint_task->reInitializeTask();
 
-                std::cout << "Entering AUTO control state" << std::endl;
-
-                redis_client.set(CONTROLLER_RUNNING_KEY, "1"); // set to auto control mode
+                state = INIT;
+                std::cout << "Exiting HAPTIC control state" << std::endl << std::endl;
             }
         }
 
@@ -1028,13 +1060,21 @@ unique_ptr<Sai2Primitives::PosOriTask> init_posori(Sai2Model::Sai2Model* robot,
 
     posori_task->_use_interpolation_flag = true;
 
-    posori_task->_otg->setMaxLinearVelocity(0.075);
-    posori_task->_otg->setMaxLinearAcceleration(0.25);
-    posori_task->_otg->setMaxLinearJerk(1.25);
+    // posori_task->_otg->setMaxLinearVelocity(0.075);
+    // posori_task->_otg->setMaxLinearAcceleration(0.25);
+    // posori_task->_otg->setMaxLinearJerk(1.25);
 
-    posori_task->_otg->setMaxAngularVelocity(M_PI/6.0);
-    posori_task->_otg->setMaxAngularAcceleration(0.75*M_PI);
-    posori_task->_otg->setMaxAngularJerk(4.0*M_PI);
+    // posori_task->_otg->setMaxAngularVelocity(M_PI/6.0);
+    // posori_task->_otg->setMaxAngularAcceleration(0.75*M_PI);
+    // posori_task->_otg->setMaxAngularJerk(4.0*M_PI);
+
+    posori_task->_otg->setMaxLinearVelocity(0.15);
+    posori_task->_otg->setMaxLinearAcceleration(0.5);
+    posori_task->_otg->setMaxLinearJerk(2.5);
+
+    posori_task->_otg->setMaxAngularVelocity(M_PI/3.0);
+    posori_task->_otg->setMaxAngularAcceleration(1.5*M_PI);
+    posori_task->_otg->setMaxAngularJerk(7.5*M_PI);
 
     posori_task->_kp_pos = 100.0;
     posori_task->_kv_pos = 17.0;
