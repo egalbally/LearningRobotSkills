@@ -16,7 +16,8 @@
 #include <random>
 #include <queue>
 
-#define NUM_RIGID_BODIES        2
+// #define MULTIPLE_RIGID_BODIES
+#define NUM_RIGID_BODIES        1
 #define RIGID_BODY_OF_INTEREST  0
 
 #define LAST_JOINT_MAX_ROT       120.0 * (M_PI / 180.0) // max angle of last joint on panda (in radians)
@@ -312,9 +313,9 @@ int main(int argc, char ** argv) {
         // 127.0.0.1:6379> get sai2::LearningSkills::lead_control::robot::ee_ori
         // "[[0.980947,0.194037,0.009617],[0.192927,-0.967129,-0.165650],[-0.022841,0.164349,-0.986138]]"
 
-        rot_rigid_body_in_ee_frame <<    0.0, 1.0,  0.0,
-                                         0.0, 0.0, -1.0,
-                                        -1.0, 0.0,  0.0;
+        rot_rigid_body_in_ee_frame <<   0.0,  0.0, -1.0,
+                                        1.0,  0.0,  0.0,
+                                        0.0, -1.0,  0.0;
     }
 
     // set offset from robot frame to rigid body perception (optitrack) frame
@@ -323,11 +324,9 @@ int main(int argc, char ** argv) {
                                      -cos(optitrack_angle * M_PI / 180.0),   0,  -sin(optitrack_angle * M_PI / 180.0),
                                      0,                                      1,   0;
     // list of rigid body poses in world
-    // note: dynamic matrix causes crash in redis get
-    Matrix<double, NUM_RIGID_BODIES, 3> pos_rigid_bodies;
-    Matrix<double, NUM_RIGID_BODIES, 4> ori_rigid_bodies;
-    pos_rigid_bodies.setZero();
-    ori_rigid_bodies.setZero();
+    // note: dynamic matrix causes crash in redis read callback
+    MatrixXd pos_rigid_bodies = MatrixXd::Zero(NUM_RIGID_BODIES, 3);
+    MatrixXd ori_rigid_bodies = MatrixXd::Zero(NUM_RIGID_BODIES, 4);
 
     // rigid body pose of interest
     Vector3d        pos_rigid_body_in_optitrack_frame          = Vector3d::Zero();
@@ -426,6 +425,12 @@ int main(int argc, char ** argv) {
 
     redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
 
+// eigen read callback works for single rigid body pose
+#ifndef MULTIPLE_RIGID_BODIES
+    redis_client.addEigenToReadCallback(0, POS_RIGID_BODIES_KEY, pos_rigid_bodies);
+    redis_client.addEigenToReadCallback(0, ORI_RIGID_BODIES_KEY, ori_rigid_bodies);
+#endif
+
     // Objects to write to redis
     redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
 
@@ -511,9 +516,11 @@ int main(int argc, char ** argv) {
             coriolis = coriolis_from_robot;
         }
 
-        // read rigid body poses (not part of redis callback due to bug)
+        // read rigid body poses (not part of redis callback due to bug with multiple rigid bodies)
+#ifdef MULTIPLE_RIGID_BODIES
         pos_rigid_bodies = redis_client.getEigenMatrixJSON(POS_RIGID_BODIES_KEY);
         ori_rigid_bodies = redis_client.getEigenMatrixJSON(ORI_RIGID_BODIES_KEY);
+#endif
 
         // if(primitive == SCREW) posori_task->removeTaskJacobianColumn(dof-1);
 
@@ -552,7 +559,6 @@ int main(int argc, char ** argv) {
 
         pos_rigid_body_in_optitrack_frame               = pos_rigid_bodies.row(RIGID_BODY_OF_INTEREST);
         pos_rigid_body_in_optitrack_frame               += rigid_body_offset_in_optitrack_frame;
-
         ori_rigid_body_in_optitrack_frame_quat.coeffs() = ori_rigid_bodies.row(RIGID_BODY_OF_INTEREST);
         ori_rigid_body_in_optitrack_frame               = ori_rigid_body_in_optitrack_frame_quat.toRotationMatrix(); // convert quaternion to rotation matrix
         // transform rigid body poses to robot frame
@@ -791,8 +797,8 @@ int main(int argc, char ** argv) {
                 // cout << "robot pos to x des norm = " << endl << (robot_position - x_des).norm() << endl << endl;
                 cout << "primitive = " << endl << primitive << endl << endl;
                 cout << "rel_pos_cap_in_ee_frame = " << endl << rel_pos_cap_in_ee_frame << endl << endl;
-                // cout << "pos_rigid_bodies = " << endl << pos_rigid_bodies << endl << endl;
-                // cout << "ori_rigid_bodies = " << endl << ori_rigid_bodies << endl << endl;
+                cout << "pos_rigid_bodies = " << endl << pos_rigid_bodies << endl << endl;
+                cout << "ori_rigid_bodies = " << endl << ori_rigid_bodies << endl << endl;
             }
 
             try {
@@ -810,7 +816,7 @@ int main(int argc, char ** argv) {
 
             command_torques = posori_task_torques + joint_task_torques + coriolis;
 
-            // command_torques.setZero();
+            command_torques.setZero();
 
             // remember values
             prev_desired_force = desired_force;
