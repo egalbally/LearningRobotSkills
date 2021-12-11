@@ -382,23 +382,22 @@ int main(int argc, char ** argv) {
             tool_mass = 1.38862;
             force_bias << -2.38828, 3.18213, 1.63922, -0.0221789, 0.2543, 0.0397122;
         }
-        else if (object_name == "cap"){
+        else if (object_name == "cap"){ //yellow cap
             if(robot_name == "Bonnie") {
                 tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
                 tool_mass = 1.30151;
                 force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
             }
-            else if(robot_name == "Clyde"){
+            else if(robot_name == "Clyde"){ //white cap
                 tool_com = Vector3d(0.116266, -0.0059085, 0.0393919);
                 tool_mass = 1.31823;
                 force_bias << -2.3394, 3.02169, 1.61922, -0.0110895, 0.268069, 0.0691265;
             }
         }
         else if (object_name == "bulb"){
-            tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
-            tool_mass = 1.30151;
-            force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
-            fprintf(stderr, "\n WARNING: Haven't calibrated the sensor for bulb on Clyde yet \nUsing cap parameters for now!\n\n");
+            tool_com = Vector3d(0.110138, -0.00354716, 0.0393851);
+            tool_mass = 1.25818;
+            force_bias << -2.69565, 2.87196, 1.73649, -0.0269478, 0.275683, 0.0370326;
         }
         else{
             fprintf(stderr, "\n\n>>> Hey!! I think you need to calibrate the FT sensor for this new object\n\n");
