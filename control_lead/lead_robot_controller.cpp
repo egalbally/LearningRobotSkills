@@ -39,7 +39,7 @@ enum {
     ALIGN,
     ENGAGE,
     SCREW,
-    TIGHTEN
+    REGRASP
 };
 
 #include <signal.h>
@@ -70,6 +70,8 @@ string ROBOT_EE_POS_KEY = "sai2::LearningSkills::lead_control::robot::ee_pos";
 string ROBOT_EE_ORI_KEY = "sai2::LearningSkills::lead_control::robot::ee_ori";
 string ROBOT_EE_FORCE_KEY = "sai2::LearningSkills::lead_control::robot::ee_force";
 string ROBOT_EE_MOMENT_KEY = "sai2::LearningSkills::lead_control::robot::ee_moment";
+// write task information
+string TASK_FAILED_KEY = "sai2::LearningSkills::lead_control::robot::task_failed"; // 0 is false, 1 is true
 
 // dual proxy
 string ROBOT_PROXY_KEY = "sai2::LearningSkills::lead_control::dual_proxy::robot_proxy";
@@ -174,10 +176,14 @@ int main(int argc, char ** argv) {
     signal(SIGTERM, &sighandler);
     signal(SIGINT, &sighandler);
 
+    // States
     int state = HOLD;
+
+    // Actions
     int primitive = GO_TO_POINT;
     // int primitive = SCREW;
     // int primitive = ALIGN;
+    int primitive = REGRASP;
 
     // load robots
     Affine3d T_world_robot = Affine3d::Identity();
@@ -230,7 +236,9 @@ int main(int argc, char ** argv) {
 
     // primitive parameters
     bool stabilize_task = false; // flag for stabilization mode
-    bool task_failed = false; // flag for failure mode
+    // bool task_failed = false; // flag for failure mode
+    int task_failed = 0; // flag for failure mode
+
     unsigned long long make_contact_counter = 0;
     unsigned long long align_counter = 0;
     unsigned long long screw_counter = 0;
@@ -440,20 +448,19 @@ int main(int argc, char ** argv) {
 
     redis_client.addEigenToReadCallback(0, ROBOT_PROXY_KEY, robot_proxy);
     redis_client.addEigenToReadCallback(0, ROBOT_PROXY_ROT_KEY, robot_proxy_rot);
+    redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
+
     redis_client.addIntToReadCallback(0, HAPTIC_DEVICE_READY_KEY, haptic_device_ready);
     redis_client.addIntToReadCallback(0, HAPTIC_CONTROL_ON_KEY, haptic_control_on);
 
-    redis_client.addEigenToReadCallback(0, ROBOT_SENSED_FORCE_KEY, sensed_force_moment_local_frame);
-
-// eigen read callback works for single rigid body pose
-#ifndef MULTIPLE_RIGID_BODIES
-    redis_client.addEigenToReadCallback(0, POS_RIGID_BODIES_KEY, pos_rigid_bodies);
-    redis_client.addEigenToReadCallback(0, ORI_RIGID_BODIES_KEY, ori_rigid_bodies);
-#endif
+    // eigen read callback works for single rigid body pose
+    #ifndef MULTIPLE_RIGID_BODIES
+        redis_client.addEigenToReadCallback(0, POS_RIGID_BODIES_KEY, pos_rigid_bodies);
+        redis_client.addEigenToReadCallback(0, ORI_RIGID_BODIES_KEY, ori_rigid_bodies);
+    #endif
 
     // Objects to write to redis
     redis_client.addEigenToWriteCallback(0, ROBOT_COMMAND_TORQUES_KEY, command_torques);
-
     redis_client.addEigenToWriteCallback(0, HAPTIC_PROXY_KEY, haptic_proxy);
     redis_client.addEigenToWriteCallback(0, SIGMA_FORCE_KEY, sigma_force);
     redis_client.addIntToWriteCallback(0, FORCE_SPACE_DIMENSION_KEY, force_space_dimension);
@@ -467,6 +474,8 @@ int main(int argc, char ** argv) {
     redis_client.addEigenToWriteCallback(0, ROBOT_EE_ORI_KEY, robot_ee_ori);
     redis_client.addEigenToWriteCallback(0, ROBOT_EE_FORCE_KEY, robot_ee_force);
     redis_client.addEigenToWriteCallback(0, ROBOT_EE_MOMENT_KEY, robot_ee_moment);
+    
+    redis_client.addIntToWriteCallback(0, TASK_FAILED_KEY, task_failed);
 
     // setup data logging
     string folder = "../../lead_control_robot/data_logging/data/";
@@ -537,10 +546,10 @@ int main(int argc, char ** argv) {
         }
 
         // read rigid body poses (not part of redis callback due to bug with multiple rigid bodies)
-#ifdef MULTIPLE_RIGID_BODIES
-        pos_rigid_bodies = redis_client.getEigenMatrixJSON(POS_RIGID_BODIES_KEY);
-        ori_rigid_bodies = redis_client.getEigenMatrixJSON(ORI_RIGID_BODIES_KEY);
-#endif
+        #ifdef MULTIPLE_RIGID_BODIES
+                pos_rigid_bodies = redis_client.getEigenMatrixJSON(POS_RIGID_BODIES_KEY);
+                ori_rigid_bodies = redis_client.getEigenMatrixJSON(ORI_RIGID_BODIES_KEY);
+        #endif
 
         // if(primitive == SCREW) posori_task->removeTaskJacobianColumn(dof-1);
 
@@ -592,9 +601,9 @@ int main(int argc, char ** argv) {
             command_torques = joint_task_torques + coriolis;
 
             // after task failure, hold current joint position until user intervenes
-            if(task_failed == true) {
+            if(task_failed == 1) {
                 if(haptic_control_on == 1) {
-                    task_failed = false;
+                    task_failed = 0;
                     std::cout << "Exiting FAILURE" << std::endl;
                 }
             }
@@ -664,7 +673,8 @@ int main(int argc, char ** argv) {
                     cout << "transitioning from GO_TO_POINT to MAKE_CONTACT" << endl << endl;
                 }
 
-                // if(controller_counter == 10000) task_failed = true;
+                // if(controller_counter == 10000) task_failed = 1;
+
             }
             // make contact with the object of interest, assuming contact is in local +Z direction
             else if(primitive == MAKE_CONTACT) {
@@ -848,6 +858,9 @@ int main(int argc, char ** argv) {
 
                 ++screw_counter;
             }
+            // regrasp the object of interest
+            if(primitive == REGRASP) {
+            }
 
             // dual proxy
             // posori_task->_sigma_force = sigma_force;
@@ -906,7 +919,7 @@ int main(int argc, char ** argv) {
 
             // switch to haptic control in failure state
             // TODO: change if condition to check for failure state
-            if(task_failed == true) {
+            if(task_failed == 1) {
                 // Reinitialize controllers
                 posori_task->reInitializeTask();
                 joint_task->reInitializeTask();
