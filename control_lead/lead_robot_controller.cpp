@@ -183,7 +183,7 @@ int main(int argc, char ** argv) {
     int primitive = GO_TO_POINT;
     // int primitive = SCREW;
     // int primitive = ALIGN;
-    int primitive = REGRASP;
+    // int primitive = REGRASP;
 
     // load robots
     Affine3d T_world_robot = Affine3d::Identity();
