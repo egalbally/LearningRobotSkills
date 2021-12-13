@@ -661,16 +661,16 @@ int main(int argc, char ** argv) {
                 ori_des = ori_rigid_body_in_robot_frame * rot_rigid_body_in_ee_frame.transpose();
                 // ori_des = ori_des * AngleAxisd(20.0 * M_PI / 180.0, Vector3d::UnitX());
 
-                if((robot_position - x_des).norm() < 3e-2) {
-                    joint_task->reInitializeTask();
-                    posori_task->reInitializeTask();
+                // if((robot_position - x_des).norm() < 3e-2) {
+                //     joint_task->reInitializeTask();
+                //     posori_task->reInitializeTask();
 
-                    posori_task->setClosedLoopForceControl();
-                    posori_task->setForceAxis(ori_rigid_body_in_robot_frame.col(1));
+                //     posori_task->setClosedLoopForceControl();
+                //     posori_task->setForceAxis(ori_rigid_body_in_robot_frame.col(1));
 
-                    primitive = MAKE_CONTACT;
-                    cout << "transitioning from GO_TO_POINT to MAKE_CONTACT" << endl << endl;
-                }
+                //     primitive = MAKE_CONTACT;
+                //     cout << "transitioning from GO_TO_POINT to MAKE_CONTACT" << endl << endl;
+                // }
 
                 // if(controller_counter == 10000) task_failed = 1;
 
@@ -1169,14 +1169,17 @@ unique_ptr<Sai2Primitives::PosOriTask> init_posori(Sai2Model::Sai2Model* robot,
     posori_task->_otg->setMaxAngularAcceleration(1.5*M_PI);
     posori_task->_otg->setMaxAngularJerk(7.5*M_PI);
 
-    // posori_task->_kp_pos = 100.0;
-    // posori_task->_kv_pos = 17.0;
+    posori_task->_kp_pos = 100.0;
+    posori_task->_kv_pos = 17.0;
 
-    posori_task->_kp_pos = 200.0;
-    posori_task->_kv_pos = 23.0;
+    // posori_task->_kp_pos = 200.0;
+    // posori_task->_kv_pos = 23.0;
 
-    posori_task->_kp_ori = 200.0;
-    posori_task->_kv_ori = 23.0;
+    // posori_task->_kp_ori = 200.0;
+    // posori_task->_kv_ori = 23.0;
+
+    posori_task->_kp_ori = 150.0;
+    posori_task->_kv_ori = 20.0;
 
     posori_task->_kp_force = 0.75;
     posori_task->_kv_force = 25.0;

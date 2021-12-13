@@ -219,16 +219,22 @@ int main(int argc, char ** argv) {
             tool_mass = 1.38862;
             force_bias << -2.38828, 3.18213, 1.63922, -0.0221789, 0.2543, 0.0397122;
         }
-        else if (object_name == "cap"){
-            tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
-            tool_mass = 1.30151;
-            force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
+        else if (object_name == "cap"){ //yellow cap
+            if(robot_name == "Bonnie") {
+                tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
+                tool_mass = 1.30151;
+                force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
+            }
+            else if(robot_name == "Clyde"){ //white cap
+                tool_com = Vector3d(0.116266, -0.0059085, 0.0393919);
+                tool_mass = 1.31823;
+                force_bias << -2.3394, 3.02169, 1.61922, -0.0110895, 0.268069, 0.0691265;
+            }
         }
         else if (object_name == "bulb"){
-            tool_com = Vector3d(0.111174, -0.00247079, 0.037597);
-            tool_mass = 1.30151;
-            force_bias << 0.164016, 1.99319, -1.08685, -0.0526554, 0.322687, 0.0513417;
-            fprintf(stderr, "\n WARNING: Haven't calibrated the sensor for bulb on Clyde yet \nUsing cap parameters for now!\n\n");
+            tool_com = Vector3d(0.110138, -0.00354716, 0.0393851);
+            tool_mass = 1.25818;
+            force_bias << -2.69565, 2.87196, 1.73649, -0.0269478, 0.275683, 0.0370326;
         }
         else{
             fprintf(stderr, "\n\n>>> Hey!! I think you need to calibrate the FT sensor for this new object\n\n");
@@ -420,16 +426,26 @@ int main(int argc, char ** argv) {
                             0.144250,0.011734,-0.989472;
             }
             else if (ee_pose_num_des == 2 && robot_name == "Clyde"){
-                x_des = Vector3d(0.534752,0.277420,0.198154);
-                ori_des <<  0.834505,0.376097,0.402682,
-                            0.066158,-0.793924,0.604406,
-                            0.547015,-0.477739,-0.687416;
+                // x_des = Vector3d(0.534752,0.277420,0.198154);
+                // ori_des <<  0.834505,0.376097,0.402682,
+                //             0.066158,-0.793924,0.604406,
+                //             0.547015,-0.477739,-0.687416;
+
+                x_des = Vector3d(0.354318,0.708849,0.411796);
+                ori_des <<  0.577738,-0.124474,-0.806675,
+                            0.681246,-0.470829,0.560557,
+                            -0.449581,-0.873399,-0.187218;
             }
             else if (ee_pose_num_des == 3 && robot_name == "Clyde"){
-                x_des = Vector3d(0.477163,0.255271,0.251263);
-                ori_des <<  0.880546,0.472678,0.034846,
-                            0.363598,-0.720843,0.590070,
-                            0.304031,-0.506914,-0.806600;
+                // x_des = Vector3d(0.477163,0.255271,0.251263);
+                // ori_des <<  0.880546,0.472678,0.034846,
+                //             0.363598,-0.720843,0.590070,
+                //             0.304031,-0.506914,-0.806600;
+
+                x_des = Vector3d(0.748038,0.247273,0.305889);
+                ori_des <<  0.989435,0.014258,-0.144277,
+                            0.092834,-0.826691,0.554945,
+                            -0.111360,-0.562475,-0.819280;
             }
             else if (ee_pose_num_des == 1 && robot_name == "Bonnie"){  
                 x_des = Vector3d(0.517257,0.007546,0.315411);
