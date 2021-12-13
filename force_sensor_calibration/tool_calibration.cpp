@@ -32,6 +32,7 @@ const string bias_file_name = "../../force_sensor_calibration/calibration_files/
 // redis keys:
 // - read:
 string JOINT_ANGLES_KEY;
+string DESIRED_JOINT_ANGLES_KEY;
 string JOINT_VELOCITIES_KEY;
 string JOINT_TORQUES_SENSED_KEY;
 // - write
@@ -70,6 +71,7 @@ int main(int argc, char** argv)
 		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Bonnie::actuators::fgc";
 
 		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Bonnie::sensors::q";
+		DESIRED_JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Bonnie::inputs::q_des";
 		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::Bonnie::sensors::dq";
 		JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::Bonnie::sensors::torques";
 		MASSMATRIX_KEY = "sai2::FrankaPanda::Bonnie::sensors::model::massmatrix";
@@ -84,6 +86,7 @@ int main(int argc, char** argv)
 		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::Clyde::actuators::fgc";
 
 		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Clyde::sensors::q";
+		DESIRED_JOINT_ANGLES_KEY  = "sai2::FrankaPanda::Clyde::inputs::q_des";
 		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::Clyde::sensors::dq";
 		JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::Clyde::sensors::torques";
 		MASSMATRIX_KEY = "sai2::FrankaPanda::Clyde::sensors::model::massmatrix";
@@ -98,6 +101,7 @@ int main(int argc, char** argv)
 		JOINT_TORQUES_COMMANDED_KEY = "sai2::FrankaPanda::actuators::fgc";
 
 		JOINT_ANGLES_KEY  = "sai2::FrankaPanda::sensors::q";
+		DESIRED_JOINT_ANGLES_KEY  = "sai2::FrankaPanda::inputs::q_des";
 		JOINT_VELOCITIES_KEY = "sai2::FrankaPanda::sensors::dq";
 		JOINT_TORQUES_SENSED_KEY = "sai2::FrankaPanda::sensors::torques";
 		MASSMATRIX_KEY = "sai2::FrankaPanda::sensors::model::massmatrix";
@@ -128,6 +132,7 @@ int main(int argc, char** argv)
 	VectorXd initial_q_desired = VectorXd::Zero(7);
 	initial_q_desired << 0, 30, 90, -90, -30, 90, 0;
 	initial_q_desired = M_PI/180.0 * initial_q_desired;
+	redis_client.setEigenMatrixJSON(DESIRED_JOINT_ANGLES_KEY, initial_q_desired);
 	robot->updateModel();
 
 	// prepare controller	
@@ -230,6 +235,7 @@ int main(int argc, char** argv)
 
 		// send to redis
 		redis_client.setEigenMatrixJSON(JOINT_TORQUES_COMMANDED_KEY, command_torques);
+		redis_client.setEigenMatrixJSON(DESIRED_JOINT_ANGLES_KEY, joint_task->_desired_position);
 
 		// cout << (joint_task->_current_position - joint_task->_desired_position).norm() << endl;
 
