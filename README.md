@@ -1,29 +1,18 @@
-Learning Skills
+Learning Skills - User Interface
 ==========================
+This branch contains the project **user interface code**. 
+
+We used the following repo as the UI starter code: [SAI 2.0 UI](https://github.com/manips-sai-org/sai2-interfaces)
+
+![UI diagram](https://github.com/egalbally/LearningRobotSkills/blob/ui_dev/readme_imgs/UI.png)
+
+Graphical User Interface developed to request user input in case of failure as well as plotting and logging sensor data. The panel on the right shows the user the complete task sequence as well as the current autonomous primitive executed by the robot.
+
+To access the website: </br >
 [**Project Website**](https://egalbally.github.io/LearningRobotSkills/)
 
-This project contains the code required for a 7-DOF Panda robot to autonomously perform tasks involving 6 primitives: free space motion (FSM), make contact, align two surfaces, engage threads, screw, tighten. If a failure occurs, a user can intervene and haptically control the robot. This achieves two goals: (a) enables task completion, (b) allows us to collect data from the recovery strategies that can then be used to enhance the autonomous capabilities of the robot.
+There you will find: 
+-   Complete project description
+-   Videos
+-   Link to paper and raw data set
 
-![projectDiagram](https://github.com/egalbally/LearningRobotSkills/blob/master/readme_imgs/learningSkills_diagram.png)
-
-
-## How to run the code:
-Inside launch_scripts, there are scritps to run each of the elements in the system: 
-
-### redis communication
-- server
-- client
-
-### hardware drivers
-- optitrack motion capture
-- ATI F/T sensor
-- haptic device driver
-- allegro hand 
-- panda arm 
-
-### controllers
-- robot controller 
-- haptic device controller 
-
-### data collection
-- logger and plotter (interface)
