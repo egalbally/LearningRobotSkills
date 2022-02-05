@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 2.8.12)
-project (LearningSkills)
+project (LearningRobotSkills)
 SET(CMAKE_CXX_FLAGS "-std=c++11 -I/usr/include -I/usr/local/include")
 # SET(CMAKE_BUILD_TYPE "Debug")
 SET(CMAKE_BUILD_TYPE "Release")
@@ -89,6 +89,5 @@ set(LEARNING_SKILLS_COMMON_LIBRARIES
 set (LEARNING_SKILLS_BINARY_DIR                  ${PROJECT_SOURCE_DIR}/bin)
 
 add_subdirectory(force_sensor_calibration)
-add_subdirectory(haptic_control)
-add_subdirectory(support_control)
-
+add_subdirectory(control_lead)
+add_subdirectory(control_support)

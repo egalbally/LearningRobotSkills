@@ -158,7 +158,7 @@
       </collision>      
     </link>
     <joint name="joint_fixed" type="fixed">
-      <origin rpy="0 0 0" xyz="0 0 0.142"/>
+      <origin rpy="0 0 0" xyz="0 0 0.107"/>
       <parent link="link7"/>
       <child link="end_effector"/>
     </joint>
