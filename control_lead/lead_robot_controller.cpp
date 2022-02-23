@@ -454,8 +454,8 @@ int main(int argc, char ** argv) {
 
     // eigen read callback works for single rigid body pose
     #ifndef MULTIPLE_RIGID_BODIES
-        redis_client.addEigenToReadCallback(0, POS_RIGID_BODIES_KEY, pos_rigid_bodies);
-        redis_client.addEigenToReadCallback(0, ORI_RIGID_BODIES_KEY, ori_rigid_bodies);
+        // redis_client.addEigenToReadCallback(0, POS_RIGID_BODIES_KEY, pos_rigid_bodies);
+        // redis_client.addEigenToReadCallback(0, ORI_RIGID_BODIES_KEY, ori_rigid_bodies);
     #endif
 
     // Objects to write to redis
@@ -546,8 +546,8 @@ int main(int argc, char ** argv) {
 
         // read rigid body poses (not part of redis callback due to bug with multiple rigid bodies)
         #ifdef MULTIPLE_RIGID_BODIES
-                pos_rigid_bodies = redis_client.getEigenMatrixJSON(POS_RIGID_BODIES_KEY);
-                ori_rigid_bodies = redis_client.getEigenMatrixJSON(ORI_RIGID_BODIES_KEY);
+                // pos_rigid_bodies = redis_client.getEigenMatrixJSON(POS_RIGID_BODIES_KEY);
+                // ori_rigid_bodies = redis_client.getEigenMatrixJSON(ORI_RIGID_BODIES_KEY);
         #endif
 
         // if(primitive == SCREW) posori_task->removeTaskJacobianColumn(dof-1);

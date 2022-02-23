@@ -103,6 +103,9 @@ string HAPTIC_DEVICE_READY_KEY = "sai2::LearningSkills::support_control::dual_pr
 string CONTROLLER_RUNNING_KEY = "sai2::LearningSkills::support_control::dual_proxy::controller_running";
 string HAPTIC_CONTROL_ON_KEY = "sai2::LearningSkills::support_control::dual_proxy::haptic_control_on";
 
+// temporary gripper button state override (1 is button pressed)
+string DEVICE_GRIPPER_STATE_KEY = "sai2::LearningSkills::lead_control::device::gripper_state";
+
 int controller_running = 0;
 Vector3d robot_ee_pos = Vector3d::Zero();
 Matrix3d robot_ee_ori = Matrix3d::Identity();
@@ -210,6 +213,9 @@ int main(int argc, char* argv[]) {
 	// initialize control state depending on how robot controller was launched
 	haptic_control_on = std::stoi(redis_client_remote.get(HAPTIC_CONTROL_ON_KEY));
 
+		// initalize temporary gripper button state override
+	redis_client_local.set(DEVICE_GRIPPER_STATE_KEY, std::to_string(gripper_state));
+
 	// setup redis keys to be updated with the callback
 	redis_client_local.createReadCallback(0);
 	redis_client_local.createWriteCallback(0);
@@ -275,7 +281,11 @@ int main(int argc, char* argv[]) {
 		// {
 		teleop_task->UseGripperAsSwitch();
 		gripper_state_prev = gripper_state;
-		gripper_state = teleop_task->gripper_state;
+		// gripper_state = teleop_task->gripper_state;
+
+		// temporary haptic gripper button state override
+		gripper_state = std::stoi(redis_client_local.get(DEVICE_GRIPPER_STATE_KEY));
+		
 		// }
 
 		if(state == INIT) {
