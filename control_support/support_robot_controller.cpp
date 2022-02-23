@@ -116,7 +116,7 @@ int main(int argc, char ** argv) {
             fprintf( stderr, "Robot name options: \n    > Bonnie\n    > Clyde\n\n");
             // fprintf( stderr, "Position number options: \n    > current\n    > 1\n    > 2\n    > 3\n    > haptic\n\n");
             fprintf( stderr, "Initial control mode options: \n    > auto\n    > haptic\n\n");
-            fprintf( stderr, "Object options:\n    > bottle\n    > cap\n    > bulb\n\n");
+            fprintf( stderr, "Object options:\n    > bottle\n    > cap\n    > bulb\n    > cap_rigid\n\n");
             return 0;
         }
 
@@ -235,6 +235,11 @@ int main(int argc, char ** argv) {
             tool_com = Vector3d(0.110138, -0.00354716, 0.0393851);
             tool_mass = 1.25818;
             force_bias << -2.69565, 2.87196, 1.73649, -0.0269478, 0.275683, 0.0370326;
+        }
+        else if (object_name == "cap_rigid"){
+            tool_com = Vector3d(0.00015448, 0.000815738, 0.00501215);
+            tool_mass = 0.226995;
+            force_bias << -2.58807, 2.27374, 2.35674, 0.12792, 0.455064, 0.00933919;
         }
         else{
             fprintf(stderr, "\n\n>>> Hey!! I think you need to calibrate the FT sensor for this new object\n\n");
