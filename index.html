@@ -9,7 +9,7 @@
 <head>
   <meta charset="utf-8"/>
   <title>Learning from Failures</title> <!-- It will appear on the website tab -->
-  <meta content="ICRA2022 Improving autonomy." name="description"/>
+  <meta content="IROS2022 Improving autonomy." name="description"/>
   <meta content="Improving autonomy" property="og:title"/>
   <meta content="Improving autonomy" property="og:description"/>
   <meta content="summary" name="twitter:card"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
@@ -38,7 +38,7 @@
   <div class="container-2 nerf_header_v2 w-container"> <!-- Title, authors, 3 icons, & main image -->
     <!-- Title and conference-->
     <h1 class="nerf_title_v2">Learning from Failures</h1>
-    <h1 class="nerf_subheader_v2">Future Conference :) </h1>
+    <h1 class="nerf_subheader_v2">IROS 2022</h1>
     <!-- Authors -->
     <div class="nerf_authors_list_single w-row">
       <div class="w-col w-col-2 w-col-small-4 w-col-tiny-5"><a href="mailito:elenagalbally@stanford.edu" target="_blank" class="nerf_authors_v2">Elena Galbally<span class="text-span_nerf_star"></span><span class="superscript text-span_nerf">1,5</span></a></div>
@@ -105,7 +105,7 @@
     <!-- <img src="./images/pool_to_primal.png" alt="" class="nerf_network"/> -->
     <!--<img src="./images/conv_and_pool.png" alt="" class="nerf_network"/> -->
     <!-- <span class="center"><img src="./images/system_v2.png"></span> -->
-    <img src="./images/Methodology.PNG" style="padding: 10px"/>
+    <img src="./images/Diagram.PNG" style="padding: 10px"/>
     <p class="paragraph-3 nerf_text">Concept: Collect set of human demonstrations of the complete task. Break the demonstrations into a sequence of autonomous robot skills. In case of failure, haptic intervention takes over and the recovery data is recorded and added to the original data.</p>
   </div>
 </div>
@@ -130,14 +130,15 @@
   </div>
 </div>
 
-<!-- SECTION 6: Hardware & Set-up block --> 
+
+<!-- SECTION 6: Hardware & Set-up block
 <div class="white_section_nerf">
   <div class="w-container">
     <h2 class="grey-heading_nerf">Hardware Set-up</h2>
     <span class="center"><img src="images/experiments_v2.png"></span>
 	</div>
   </div>
-</div>
+</div> -->
 
 
 <!-- SECTION 7: How to Replicate our Results  --> 
@@ -145,7 +146,18 @@
   <div class="grey_container w-container">
     <h2 class="grey-heading_nerf">How to Replicate our Results?</h2>
     <h3 class="grey-heading_nerf">Simulation Environment (SAI)</h3>
-    	<p class="paragraph-3 nerf_text nerf_results_text">The development of the controller relied on Simulation and Active Interfaces:<a href="https:/khatib.stanford.edu/projects/controlandsimulation.html"class="link-block w-inline-block"><p class="paragraph-3 nerf_text nerf_results_text">SAI 2.0</p></a></p>
+    	<p class="paragraph-3 nerf_text nerf_results_text">The development of the controller relied on Simulation and Active Interfaces:</p>
+
+    	<!--<a href="https:/khatib.stanford.edu/projects/controlandsimulation.html"class="link-block w-inline-block"><p class="paragraph-3 nerf_text nerf_results_text">SAI 2.0</p></a>-->
+
+    	<div class="w-col w-col-4 w-col-small-4 w-col-tiny-4">
+        <a href="https:/khatib.stanford.edu/projects/controlandsimulation.html" target="_blank" class="link-block w-inline-block">
+        <img src="https://uploads-ssl.webflow.com/51e0d73d83d06baa7a00000f/5cae3b53b42ebb3dd4175a82_68747470733a2f2f7777772e69636f6e66696e6465722e636f6d2f646174612f69636f6e732f6f637469636f6e732f313032342f6d61726b2d6769746875622d3235362e706e67.png" alt="paper" class="paper_img image-8 github_icon_nerf_v2"/></a>
+      </div>
+	</div>
+      <div class="w-col w-col-4 w-col-small-4 w-col-tiny-4"><div class="text-block-2">
+        <strong class="bold-text-nerf_v2">Code</strong></div>
+      </div>
 
     <h3 class="grey-heading_nerf">Hardware Drivers</h3>
 	<div class="center">
@@ -171,6 +183,8 @@
         <img src="./images/hand_icon.PNG" alt="paper" class="paper_img image-8_nerf nerf_db_icon"/></a></div>
     </div><br><br><br><br>
 
+
+
     <!-- Captions below icons-->
     <div class="center">
 
@@ -191,7 +205,11 @@
 
     </div><br><br>
 
-	<h3 class="grey-heading_nerf">3D Printed Hardware Adaptors</h3>
+     <div>
+      <span class="center"><img src="images/adaptergif.mp4"></span>
+    </div>
+
+	<h3 class="grey-heading_nerf">3D Printed Hardware Adaptors</h3> <img src="./images/CAD_icon.PNG" alt="paper" class="paper_img image-8_nerf nerf_db_icon"/>
 
 	<div class="center">
 
@@ -201,19 +219,19 @@
 		<img src="./images/allegro_gif.gif"></a></div>
 
 
-        <!--Optitrack markers -->
+        <!--Cap Optitrack markers -->
 	    <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3">
-        <a href="https://drive.google.com/drive/folders/1Bq_qv2q4DsSJ28_VVIGI-JGhGz-5v1m1?usp=sharing" target="_blank" class="link-block w-inline-block"><img src="./images/allegro_gif.gif"></a></div>
+        <a href="https://drive.google.com/drive/folders/1Bq_qv2q4DsSJ28_VVIGI-JGhGz-5v1m1?usp=sharing" target="_blank" class="link-block w-inline-block"><img src="./images/capOptitrack.jpg"></a></div>
         
 
-        <!--TBD -->
+        <!--Cap to HGI force sensor -->
 	    <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3">
-        <a href="https://drive.google.com/drive/folders/1Bq_qv2q4DsSJ28_VVIGI-JGhGz-5v1m1?usp=sharing" target="_blank" class="link-block w-inline-block"><img src="./images/allegro_gif.gif"></a></div>
+        <a href="https://drive.google.com/drive/folders/1Bq_qv2q4DsSJ28_VVIGI-JGhGz-5v1m1?usp=sharing" target="_blank" class="link-block w-inline-block"><img src="./images/capToATIForceSensor.jpg"></a></div>
         
 
-        <!--TBD -->
+        <!--TBD 
 	    <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3">
-        <a href="https://github.com/manips-sai/FrankaPanda" target="_blank" class="link-block w-inline-block"><img src="./images/allegro_gif.gif"></a></div>
+        <a href="https://github.com/manips-sai/FrankaPanda" target="_blank" class="link-block w-inline-block"><img src="./images/allegro_gif.gif"></a></div>-->
         
 
 	</div><br><br><br>
@@ -225,15 +243,15 @@
         <div class="text-block-2"><strong class="bold-text-nerf_v2">Force sensor to hand</strong></div></div>
       
         <!--Force Sensor -->
-        <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3"><div class="text-block-2"><strong class="bold-text-nerf_v2">Optitrack markers</strong></div></div>
+        <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3"><div class="text-block-2"><strong class="bold-text-nerf_v2">Cap Optitrack markers</strong></div></div>
 
         <!--Optitrack -->
         <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3">
-        <div class="text-block-2"><strong class="bold-text-nerf_v2">TBD</strong></div></div>
+        <div class="text-block-2"><strong class="bold-text-nerf_v2">Cap to ATI force sensor</strong></div></div>
 
-        <!--Allegro Hand -->
+        <!--Allegro Hand 
         <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3">
-        <div class="text-block-2"><strong class="bold-text-nerf_v2">TBD</strong></div></div>
+        <div class="text-block-2"><strong class="bold-text-nerf_v2">TBD</strong></div></div>-->
 
     </div><br><br><br><br>
 
@@ -285,13 +303,16 @@
 <div class="white_section_nerf">
   <div class="w-container">
    <h2 class="grey-heading_nerf">Additional Resources</h2>
-   <div class="center">
-   <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3"><a href="https://drive.google.com/file/d/1v3TjVvMz5yd02KmtzHktaZqoy1byS29H/view?usp=sharing"_blank class="examples_header">Render1 files</a></div>
+      
+    <div>
+      <span class="center"><img src="images/pandaArm.JPG"></span>
+    </div>
+
+   <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3"><a href="https://drive.google.com/file/d/1v3TjVvMz5yd02KmtzHktaZqoy1byS29H/view?usp=sharing"_blank class="examples_header">Allegro Hand Render</a></div>
    <!-- include other links to CREO files from the lab? -->
-   <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3"><a href="https://drive.google.com/drive/folders/1walV9i5PeEbx-516_IZKtYCYQanpIzTo?usp=sharing"_blank class="examples_header">Render2 files</a></div>
-   <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3"><a class="examples_header">TBD</a></div>
-   <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3"><a class="examples_header">TBD</a></div>
-</div></div>
+   <div class="w-col w-col-3 w-col-small-3 w-col-tiny-3"><a href="https://drive.google.com/drive/folders/1walV9i5PeEbx-516_IZKtYCYQanpIzTo?usp=sharing"_blank class="examples_header">Franka Panda Arm Render</a></div>
+   
+</div>
 </div>
 
 <!-- SECTION 9: Relevant Prior Work  -->
@@ -300,7 +321,26 @@
     <h2 class="grey-heading_nerf">Relevant Prior Work</h2>
    <!--  <p class="paragraph-3 nerf_text nerf_results_text">Human Data Labelling and Segmentation:><a href="https://github.com/egalbally/HumanDataLabellingAndSegmentation"><p class="paragraph-3 nerf_text nerf_results_text">Link to code</p></a>
     </p> -->
-    <p class="paragraph-3 nerf_text nerf_results_text">Human Data Labelling and Segmentation:<a href="https://github.com/egalbally/HumanDataLabellingAndSegmentation"class="link-block w-inline-block"><p class="paragraph-3 nerf_text nerf_results_text">Link to code and data</p></a></p>
+
+    <p class="paragraph-3 nerf_text nerf_results_text">Human Data Labelling and Segmentation:
+
+    	<div><div class="center">
+   		
+        <div class="w-col w-col-4 w-col-small-4 w-col-tiny-4">
+        <a href="https://github.com/egalbally/HumanDataLabellingAndSegmentation" target="_blank" class="link-block w-inline-block">
+        <img src="https://uploads-ssl.webflow.com/51e0d73d83d06baa7a00000f/5cae3b53b42ebb3dd4175a82_68747470733a2f2f7777772e69636f6e66696e6465722e636f6d2f646174612f69636f6e732f6f637469636f6e732f313032342f6d61726b2d6769746875622d3235362e706e67.png" alt="paper" class="paper_img image-8 github_icon_nerf_v2"/></a>
+      </div>
+      <div class="column-2 w-col w-col-4 w-col-small-4 w-col-tiny-4"> 
+        <a href="https://drive.google.com/drive/folders/1xkGvRUSKXV1l5X8-9bTzfx_CLLtIlNwi"_blank" class="link-block w-inline-block">
+        <img src="https://uploads-ssl.webflow.com/51e0d73d83d06baa7a00000f/5e7136849ee3b0a0c6a95151_database.svg" alt="paper" class="paper_img image-8_nerf nerf_db_icon"/></a>
+      </div>
+		<div class="w-col w-col-4 w-col-small-4 w-col-tiny-4"><div class="text-block-2">
+        <strong class="bold-text-nerf_v2">Code</strong></div>
+      </div>
+      <div class="w-col w-col-4 w-col-small-4 w-col-tiny-4">
+        <div class="text-block-2"><strong class="bold-text-nerf_v2">Data</strong></div>
+
+    	<!--<a href="https://github.com/egalbally/HumanDataLabellingAndSegmentation"class="link-block w-inline-block"><p class="paragraph-3 nerf_text nerf_results_text">Link to code and data</p></a></p>-->
     <!-- <img src="./images/method_segmentation.png" style="padding: 20px"/>
     <img src="./images/data.png" style="padding: 20px"/>
     <img src="./images/sampleResults.png" style="padding: 20px"/> -->
