@@ -119,14 +119,13 @@
 <div data-anchor="slide1" class="section nerf_section">
   <div class="grey_container w-container">
     <h2 class="grey-heading_nerf">Abstract &amp; Method</h2>
-    <p class="paragraph-3 nerf_text">Even the most robust autonomous behaviors canfail. The goal is to both recover and learn from failures sothat they can be prevented in the future. We propose hapticintervention for real-time failure recovery and data collec-tion. The system presented in this paper allows for seamlesstransitions between autonomous robot behaviors and humanintervention, while collecting the necessary sensory informationto learn from the human’s recovery strategy. We tested thesystem on two Panda arms with Allegro grippers and whereable to successfully perform a bolting task while enhancing ouroriginal data set and autonomous behaviors.</p>
-    <p class="paragraph-3 nerf_text">Our main technical contribution is ....</p>
-    <p class="paragraph-3 nerf_text">Our ... .</p>
-    <!-- <img src="./images/pool_to_primal.png" alt="" class="nerf_network"/> -->
+    <p class="paragraph-3 nerf_text">Even the most robust autonomous behaviors can fail. The goal of this research is to both recover and learn from failures so they can be prevented in the future. We propose haptic intervention for real-time failure recovery and data collection. Elly is a system that allows for seamless transitions between autonomous robot behaviors and human intervention while collecting the necessary sensory information to learn from the human’s recovery strategy. The system and our design choices were experimentally validated on a single arm task -- installing a lightbulb in a socket -- and a bimanual task -- screwing a cap on a bottle -- using two 7-DOF manipulators equipped 4-finger grippers. In these examples, Elly achieved over 80\% task completion during a total of 40 runs.</p>
+ 
+        <!-- <img src="./images/pool_to_primal.png" alt="" class="nerf_network"/> -->
     <!--<img src="./images/conv_and_pool.png" alt="" class="nerf_network"/> -->
     <!-- <span class="center"><img src="./images/system_v2.png"></span> -->
-    <img src="./images/Diagram.PNG" style="padding: 10px"/>
-    <p class="paragraph-3 nerf_text">Concept: Collect set of human demonstrations of the complete task. Break the demonstrations into a sequence of autonomous robot skills. In case of failure, haptic intervention takes over and the recovery data is recorded and added to the original data.</p>
+    <img src="./images/diagram2.PNG" style="padding: 10px"/>
+    <p class="paragraph-3 nerf_text">System Diagram: We collect a small set of human demonstrations of a complete task. The demonstrations are then segmented into a sequence of primitives and used to parametrize the autonomous model-based controllers. In case of failure, we switch to haptic control which enables task completion while providing the operator with real-time contact feedback. Data from the failure recovery strategies is collected and added to the original data set to improve the robot's knowledge of the task. The yellow highlight outlines the interactive haptic learning loop.</p>
   </div>
 </div>
 
@@ -134,7 +133,7 @@
 <div class="white_section_nerf">
   <div class="w-container">
     <h2 class="grey-heading_nerf">Controller and Architecture</h2>
-    <p class="paragraph-3 nerf_text nerf_results_text">Brief Description</p>
+    <!--<p class="paragraph-3 nerf_text nerf_results_text">Brief Description</p>-->
     <img src="./images/control_arch.JPG" style="padding: 5px"/>
     </div>
   </div>
