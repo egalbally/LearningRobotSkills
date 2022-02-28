@@ -1,5 +1,5 @@
 # create an executable
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${LEARNING_SKILLS_BINARY_DIR}/lead_control)
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${LEARNING_SKILLS_BINARY_DIR}/control_lead)
 ADD_EXECUTABLE (lead_control_robot lead_robot_controller.cpp ${LEARNING_SKILLS_COMMON_SOURCE})
 ADD_EXECUTABLE (lead_control_haptic lead_haptic_controller.cpp ${LEARNING_SKILLS_COMMON_SOURCE})
 # ADD_EXECUTABLE (lead_robot_simviz lead_simviz.cpp ${LEARNING_SKILLS_COMMON_SOURCE})
@@ -10,7 +10,7 @@ TARGET_LINK_LIBRARIES (lead_control_haptic ${LEARNING_SKILLS_COMMON_LIBRARIES})
 #TARGET_LINK_LIBRARIES (lead_robot_simviz ${LEARNING_SKILLS_COMMON_LIBRARIES})
 
 # copy control launch script to runtime directory
-FILE(COPY launch_lead_control_robot_Clyde.sh DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+# FILE(COPY launch_lead_control_robot_Clyde.sh DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 # export resources such as model files.
 # NOTE: this requires an install build

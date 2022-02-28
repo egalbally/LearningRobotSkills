@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+
+<tool name="tool">
+	<inertial>
+		<origin xyz="   0.110138 -0.00354716   0.0393851" rpy="0 0 0"/>
+		<mass value="1.25818"/>
+	</inertial>
+</tool>

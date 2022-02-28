@@ -1,5 +1,5 @@
 # create an executable
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${LEARNING_SKILLS_BINARY_DIR}/support_control)
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${LEARNING_SKILLS_BINARY_DIR}/control_support)
 ADD_EXECUTABLE (support_control_robot support_robot_controller.cpp ${LEARNING_SKILLS_COMMON_SOURCE})
 ADD_EXECUTABLE (support_control_haptic support_haptic_controller.cpp ${LEARNING_SKILLS_COMMON_SOURCE})
 
